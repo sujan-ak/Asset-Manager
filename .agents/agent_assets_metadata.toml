@@ -1,0 +1,32 @@
+uploads = []
+outputs = []
+
+[[generated]]
+id = "M3IuNpupC5BSBtyUMJznm"
+uri = "file://artifacts/mobile/assets/images/icon.png"
+type = "image"
+title = "edodwaja app icon"
+
+[[generated]]
+id = "MJSwuaxMOasZ1_Tuky9dz"
+uri = "file://artifacts/mobile/assets/images/splash.png"
+type = "image"
+title = "edodwaja splash background"
+
+[[generated]]
+id = "O8qP_mA10Bi-zIrY7DRey"
+uri = "file://artifacts/mobile/assets/images/course_robotics.png"
+type = "image"
+title = "robotics course thumbnail"
+
+[[generated]]
+id = "gq7_TUhgQ9GXFZrqSEGnb"
+uri = "file://artifacts/mobile/assets/images/course_ai.png"
+type = "image"
+title = "AI course thumbnail"
+
+[[generated]]
+id = "ekPyCIwlAa0qlo4CbBea3"
+uri = "file://artifacts/mobile/assets/images/course_electronics.png"
+type = "image"
+title = "electronics course thumbnail"

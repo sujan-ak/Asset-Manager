@@ -1,0 +1,1 @@
+- [EDODWAJA mobile app structure](edodwaja-structure.md) — AsyncStorage-only auth/cart, mock data only, no backend wired to mobile yet

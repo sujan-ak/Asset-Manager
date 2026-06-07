@@ -1,0 +1,191 @@
+import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
+import { router, useLocalSearchParams } from "expo-router";
+import React from "react";
+import {
+  Alert,
+  Image,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { useCart } from "@/context/CartContext";
+import { PRODUCTS } from "@/data/mockData";
+import { useColors } from "@/hooks/useColors";
+
+export default function ProductDetailScreen() {
+  const colors = useColors();
+  const insets = useSafeAreaInsets();
+  const { id } = useLocalSearchParams<{ id: string }>();
+  const { addToCart, items } = useCart();
+  const product = PRODUCTS.find((p) => p.id === id);
+
+  if (!product) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <Text style={{ color: colors.foreground, padding: 24 }}>Product not found.</Text>
+      </View>
+    );
+  }
+
+  const isInCart = items.some((i) => i.product.id === product.id);
+  const discount = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  function handleAddToCart() {
+    if (!product) return;
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    addToCart(product);
+    Alert.alert("Added to Cart", `${product.title} has been added to your cart.`, [
+      { text: "Continue Shopping", style: "cancel" },
+      { text: "Checkout", onPress: () => router.push("/store/checkout") },
+    ]);
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 120 : insets.bottom + 120 }}
+      >
+        <View style={styles.imageContainer}>
+          <Image source={product.thumbnail} style={styles.image} />
+          <View style={styles.overlay} />
+          <Pressable
+            style={[styles.backCircle, { top: topPad + 8 }]}
+            onPress={() => router.back()}
+          >
+            <Feather name="arrow-left" size={20} color="#FFF" />
+          </Pressable>
+          {product.badge && (
+            <View style={[styles.badge, { backgroundColor: colors.secondary, bottom: 16, left: 16 }]}>
+              <Text style={styles.badgeText}>{product.badge}</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={styles.content}>
+          <Text style={[styles.subcategory, { color: colors.mutedForeground }]}>{product.subcategory}</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{product.title}</Text>
+
+          <View style={styles.priceRow}>
+            <Text style={[styles.price, { color: colors.primary }]}>₹{product.price}</Text>
+            <Text style={[styles.originalPrice, { color: colors.mutedForeground }]}>₹{product.originalPrice}</Text>
+            <View style={[styles.discountBadge, { backgroundColor: "#DCFCE7" }]}>
+              <Text style={[styles.discountText, { color: "#16A34A" }]}>{discount}% off</Text>
+            </View>
+          </View>
+
+          <View style={styles.ratingRow}>
+            {[1, 2, 3, 4, 5].map((i) => (
+              <Feather
+                key={i}
+                name="star"
+                size={16}
+                color={i <= Math.round(product.rating) ? "#F59E0B" : colors.border}
+              />
+            ))}
+            <Text style={[styles.ratingText, { color: colors.mutedForeground }]}>
+              {product.rating} ({product.reviews} reviews)
+            </Text>
+          </View>
+
+          {/* Stock status */}
+          <View style={styles.stockRow}>
+            <Feather
+              name={product.inStock ? "check-circle" : "x-circle"}
+              size={14}
+              color={product.inStock ? "#16A34A" : "#DC2626"}
+            />
+            <Text style={[styles.stockText, { color: product.inStock ? "#16A34A" : "#DC2626" }]}>
+              {product.inStock ? "In Stock" : "Out of Stock"}
+            </Text>
+          </View>
+
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>About this product</Text>
+          <Text style={[styles.description, { color: colors.mutedForeground }]}>{product.description}</Text>
+
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>What's included</Text>
+          {product.features.map((feat, idx) => (
+            <View key={idx} style={styles.featureRow}>
+              <Feather name="check" size={14} color={colors.primary} />
+              <Text style={[styles.featureText, { color: colors.foreground }]}>{feat}</Text>
+            </View>
+          ))}
+        </View>
+      </ScrollView>
+
+      {/* CTA */}
+      <View
+        style={[
+          styles.cta,
+          {
+            backgroundColor: colors.card,
+            borderTopColor: colors.border,
+            paddingBottom: Platform.OS === "web" ? 20 : insets.bottom + 8,
+          },
+        ]}
+      >
+        <Pressable
+          style={[styles.ctaBtn, { backgroundColor: isInCart ? colors.muted : colors.primary }]}
+          onPress={isInCart ? () => router.push("/store/checkout") : handleAddToCart}
+          disabled={!product.inStock}
+        >
+          <Feather name={isInCart ? "shopping-cart" : "shopping-bag"} size={18} color={isInCart ? colors.primary : "#FFF"} />
+          <Text style={[styles.ctaBtnText, { color: isInCart ? colors.primary : "#FFF" }]}>
+            {isInCart ? "Go to Checkout" : "Add to Cart"}
+          </Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1 },
+  imageContainer: { position: "relative", height: 280 },
+  image: { width: "100%", height: "100%", resizeMode: "cover" },
+  overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(0,0,0,0.2)" },
+  backCircle: {
+    position: "absolute",
+    left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  badge: { position: "absolute", paddingHorizontal: 12, paddingVertical: 5, borderRadius: 20 },
+  badgeText: { fontSize: 12, fontWeight: "700", color: "#FFF" },
+  content: { padding: 20, gap: 10 },
+  subcategory: { fontSize: 12, fontWeight: "600", textTransform: "uppercase", letterSpacing: 1 },
+  title: { fontSize: 22, fontWeight: "800", lineHeight: 28 },
+  priceRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  price: { fontSize: 26, fontWeight: "800" },
+  originalPrice: { fontSize: 16, textDecorationLine: "line-through" },
+  discountBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  discountText: { fontSize: 12, fontWeight: "700" },
+  ratingRow: { flexDirection: "row", alignItems: "center", gap: 3 },
+  ratingText: { fontSize: 13, marginLeft: 4 },
+  stockRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  stockText: { fontSize: 13, fontWeight: "600" },
+  sectionTitle: { fontSize: 17, fontWeight: "700", marginTop: 4 },
+  description: { fontSize: 14, lineHeight: 22 },
+  featureRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  featureText: { fontSize: 14 },
+  cta: { position: "absolute", bottom: 0, left: 0, right: 0, padding: 16, borderTopWidth: 1 },
+  ctaBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 16,
+    borderRadius: 14,
+  },
+  ctaBtnText: { fontSize: 16, fontWeight: "700" },
+});
