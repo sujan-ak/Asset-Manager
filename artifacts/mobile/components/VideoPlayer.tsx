@@ -97,7 +97,8 @@ export function VideoPlayer({ videoUrl, initialTime = 0, onProgressUpdate, onCom
         <VideoView
           player={player}
           style={styles.video}
-          allowsFullscreen
+          nativeControls={false}
+          allowsFullscreen={false}
           allowsPictureInPicture={false}
         />
 

@@ -48,9 +48,11 @@ export default function CourseDetailScreen() {
   const completedModules = courseProgress
     ? Object.values(courseProgress.modules).filter((m) => m.isCompleted).length
     : 0;
+  const remainingModules = course.modules.length - completedModules;
   const lastModuleId = courseProgress
     ? ProgressCalculator.getLastAccessedModuleId(courseProgress.modules)
     : null;
+  const hasStarted = progress > 0;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -111,35 +113,58 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* Progress (if enrolled) */}
-          {course.isPurchased && progress > 0 && (
-            <View style={[styles.progressCard, { backgroundColor: colors.accent }]}>
+          {course.isPurchased && hasStarted && (
+            <View style={[styles.progressCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
               <View style={styles.progressHeader}>
-                <Text style={[styles.progressLabel, { color: colors.primary }]}>Your Progress</Text>
-                <Text style={[styles.progressPct, { color: colors.primary }]}>{progress}%</Text>
+                <View>
+                  <Text style={[styles.progressLabel, { color: colors.primary }]}>Your Progress</Text>
+                  <Text style={[styles.progressPct, { color: colors.primary }]}>{progress}%</Text>
+                </View>
+                {progress === 100 && (
+                  <View style={[styles.completeBadge, { backgroundColor: "#10B981" }]}>
+                    <Feather name="award" size={16} color="#FFF" />
+                    <Text style={styles.completeBadgeText}>Completed</Text>
+                  </View>
+                )}
               </View>
               <View style={[styles.progressTrack, { backgroundColor: colors.border }]}>
                 <View
                   style={[styles.progressFill, { width: `${progress}%` as any, backgroundColor: colors.primary }]}
                 />
               </View>
-              <Text style={[styles.progressSub, { color: colors.primary }]}>
-                {completedModules} of {course.modules.length} modules completed
-              </Text>
+              <View style={styles.progressStats}>
+                <Text style={[styles.progressSub, { color: colors.foreground }]}>
+                  {completedModules} of {course.modules.length} lessons completed
+                </Text>
+                {remainingModules > 0 && (
+                  <Text style={[styles.progressRemaining, { color: colors.mutedForeground }]}>
+                    {remainingModules} remaining
+                  </Text>
+                )}
+              </View>
             </View>
           )}
 
           {/* Curriculum */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Curriculum</Text>
+          <Text style={[styles.curriculumSubtitle, { color: colors.mutedForeground }]}>
+            {course.modules.length} lessons · {course.duration}
+          </Text>
           {course.modules.map((mod, idx) => {
             const modProgress = courseProgress?.modules[mod.id];
             const isCompleted = modProgress?.isCompleted || false;
+            const watchedPercentage = modProgress?.videoProgress.watchedPercentage || 0;
 
             return (
               <Pressable
                 key={mod.id}
                 style={[
                   styles.moduleItem,
-                  { backgroundColor: colors.card, borderColor: colors.border },
+                  { 
+                    backgroundColor: colors.card, 
+                    borderColor: isCompleted ? "#10B981" : colors.border,
+                    borderWidth: isCompleted ? 2 : 1
+                  },
                 ]}
                 onPress={() => {
                   if (course.isPurchased) {
@@ -154,17 +179,31 @@ export default function CourseDetailScreen() {
                   ]}
                 >
                   {isCompleted ? (
-                    <Feather name="check" size={14} color="#16A34A" />
+                    <Feather name="check" size={14} color="#10B981" />
                   ) : (
                     <Text style={[styles.moduleNumText, { color: colors.mutedForeground }]}>{idx + 1}</Text>
                   )}
                 </View>
                 <View style={styles.moduleInfo}>
-                  <Text style={[styles.moduleTitle, { color: colors.foreground }]}>{mod.title}</Text>
-                  <Text style={[styles.moduleDuration, { color: colors.mutedForeground }]}>{mod.duration}</Text>
+                  <Text style={[styles.moduleTitle, { color: isCompleted ? "#10B981" : colors.foreground }]}>
+                    {mod.title}
+                  </Text>
+                  <View style={styles.moduleMetaRow}>
+                    <Feather name="clock" size={11} color={colors.mutedForeground} />
+                    <Text style={[styles.moduleDuration, { color: colors.mutedForeground }]}>{mod.duration}</Text>
+                    {watchedPercentage > 0 && watchedPercentage < 100 && (
+                      <Text style={[styles.watchedPercentage, { color: colors.primary }]}>
+                        · {Math.round(watchedPercentage)}% watched
+                      </Text>
+                    )}
+                  </View>
                 </View>
                 {course.isPurchased ? (
-                  <Feather name="play-circle" size={20} color={colors.primary} />
+                  <Feather 
+                    name={isCompleted ? "check-circle" : "play-circle"} 
+                    size={20} 
+                    color={isCompleted ? "#10B981" : colors.primary} 
+                  />
                 ) : (
                   <Feather name="lock" size={16} color={colors.mutedForeground} />
                 )}
@@ -207,15 +246,29 @@ export default function CourseDetailScreen() {
       >
         {course.isPurchased ? (
           <Pressable
-            style={[styles.ctaBtn, { backgroundColor: colors.primary }]}
+            style={[styles.ctaBtn, { backgroundColor: progress === 100 ? "#10B981" : colors.primary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               const targetModuleId = lastModuleId || course.modules[0].id;
               router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: targetModuleId } });
             }}
           >
-            <Feather name="play" size={18} color="#FFF" />
-            <Text style={styles.ctaBtnText}>{progress > 0 ? "Continue Learning" : "Start Learning"}</Text>
+            {progress === 100 ? (
+              <>
+                <Feather name="award" size={18} color="#FFF" />
+                <Text style={styles.ctaBtnText}>Review Course</Text>
+              </>
+            ) : progress > 0 ? (
+              <>
+                <Feather name="play" size={18} color="#FFF" />
+                <Text style={styles.ctaBtnText}>Continue Learning · {progress}%</Text>
+              </>
+            ) : (
+              <>
+                <Feather name="play" size={18} color="#FFF" />
+                <Text style={styles.ctaBtnText}>Start Learning</Text>
+              </>
+            )}
           </Pressable>
         ) : (
           <View style={styles.ctaRow}>
@@ -274,13 +327,51 @@ const styles = StyleSheet.create({
   tags: { flexDirection: "row", gap: 8, flexWrap: "wrap" },
   tag: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 20 },
   tagText: { fontSize: 12, fontWeight: "500" },
-  progressCard: { borderRadius: 14, padding: 16, gap: 8 },
-  progressHeader: { flexDirection: "row", justifyContent: "space-between" },
-  progressLabel: { fontSize: 14, fontWeight: "700" },
-  progressPct: { fontSize: 14, fontWeight: "700" },
-  progressTrack: { height: 6, borderRadius: 3 },
-  progressFill: { height: 6, borderRadius: 3 },
-  progressSub: { fontSize: 12 },
+  progressCard: { 
+    borderRadius: 16, 
+    padding: 18, 
+    gap: 12,
+    borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  progressHeader: { 
+    flexDirection: "row", 
+    justifyContent: "space-between",
+    alignItems: "center"
+  },
+  progressLabel: { fontSize: 13, fontWeight: "600", marginBottom: 4 },
+  progressPct: { fontSize: 24, fontWeight: "800" },
+  completeBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  completeBadgeText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#FFF",
+  },
+  progressTrack: { height: 8, borderRadius: 4 },
+  progressFill: { height: 8, borderRadius: 4 },
+  progressStats: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  progressSub: { fontSize: 13, fontWeight: "500" },
+  progressRemaining: { fontSize: 12 },
+  curriculumSubtitle: {
+    fontSize: 13,
+    marginBottom: 12,
+    marginTop: -8,
+  },
   moduleItem: {
     flexDirection: "row",
     alignItems: "center",
@@ -292,9 +383,18 @@ const styles = StyleSheet.create({
   },
   moduleNum: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   moduleNumText: { fontSize: 13, fontWeight: "700" },
-  moduleInfo: { flex: 1 },
+  moduleInfo: { flex: 1, gap: 4 },
   moduleTitle: { fontSize: 14, fontWeight: "600" },
-  moduleDuration: { fontSize: 12, marginTop: 2 },
+  moduleMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  moduleDuration: { fontSize: 12 },
+  watchedPercentage: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
   quizCard: {
     flexDirection: "row",
     alignItems: "center",

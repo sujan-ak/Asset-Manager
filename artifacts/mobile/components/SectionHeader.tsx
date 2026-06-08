@@ -4,14 +4,20 @@ import { useColors } from "@/hooks/useColors";
 
 interface SectionHeaderProps {
   title: string;
+  subtitle?: string;
   onSeeAll?: () => void;
 }
 
-export function SectionHeader({ title, onSeeAll }: SectionHeaderProps) {
+export function SectionHeader({ title, subtitle, onSeeAll }: SectionHeaderProps) {
   const colors = useColors();
   return (
-    <View style={styles.row}>
-      <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+    <View style={styles.container}>
+      <View style={styles.textContainer}>
+        <Text style={[styles.title, { color: colors.foreground }]}>{title}</Text>
+        {subtitle && (
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
+        )}
+      </View>
       {onSeeAll && (
         <Pressable onPress={onSeeAll}>
           <Text style={[styles.seeAll, { color: colors.primary }]}>See all</Text>
@@ -22,15 +28,22 @@ export function SectionHeader({ title, onSeeAll }: SectionHeaderProps) {
 }
 
 const styles = StyleSheet.create({
-  row: {
+  container: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 12,
   },
+  textContainer: {
+    flex: 1,
+  },
   title: {
     fontSize: 18,
     fontWeight: "700",
+  },
+  subtitle: {
+    fontSize: 13,
+    marginTop: 2,
   },
   seeAll: {
     fontSize: 13,

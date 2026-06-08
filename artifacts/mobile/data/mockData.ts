@@ -25,6 +25,8 @@ export interface Module {
   isCompleted: boolean;
   videoUrl: string;
   resources: Resource[];
+  description: string;
+  notes: string[];
 }
 
 export interface Resource {
@@ -106,6 +108,13 @@ export const COURSES: Course[] = [
         duration: "45 min",
         isCompleted: true,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Welcome to the world of robotics! In this lesson, you'll learn the fundamental concepts of robotics, including what robots are, how they work, and their applications in modern technology. We'll explore the basic components that make up a robot and understand the principles behind autonomous systems.",
+        notes: [
+          "Robots are programmable machines designed to perform tasks autonomously",
+          "Key components: sensors, actuators, controllers, and power systems",
+          "Applications span from manufacturing to healthcare and space exploration",
+          "Understanding feedback loops is crucial for robot behavior"
+        ],
         resources: [
           { id: "r1", title: "Robotics Basics PDF", type: "pdf", size: "2.4 MB", url: "#" },
         ],
@@ -116,6 +125,14 @@ export const COURSES: Course[] = [
         duration: "1h 10m",
         isCompleted: true,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Dive deep into electronic circuits - the backbone of all robotic systems. Learn about voltage, current, resistance, and how components like resistors, capacitors, and transistors work together. You'll build your first simple circuits and understand how electricity flows through different pathways.",
+        notes: [
+          "Ohm's Law: V = I × R (Voltage = Current × Resistance)",
+          "Series circuits: components connected in a single path",
+          "Parallel circuits: components connected in multiple branches",
+          "Always check polarity when connecting components",
+          "Use a multimeter to measure voltage, current, and resistance"
+        ],
         resources: [
           { id: "r2", title: "Circuit Diagrams", type: "pdf", size: "1.8 MB", url: "#" },
         ],
@@ -126,6 +143,14 @@ export const COURSES: Course[] = [
         duration: "1h 30m",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Master the Arduino programming environment and learn to write code that brings your robots to life. Understand the structure of Arduino sketches, work with digital and analog inputs/outputs, and control LEDs, motors, and sensors through code.",
+        notes: [
+          "Arduino IDE setup and basic interface navigation",
+          "Setup() runs once, loop() runs continuously",
+          "Digital pins: HIGH (5V) or LOW (0V) states",
+          "Analog pins: read values from 0-1023",
+          "Serial communication for debugging: Serial.print()"
+        ],
         resources: [],
       },
       {
@@ -134,6 +159,13 @@ export const COURSES: Course[] = [
         duration: "55 min",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Learn to integrate various sensors with your Arduino to give your robot the ability to sense its environment. Work with ultrasonic sensors for distance measurement, temperature sensors, and light sensors to create responsive robotic behaviors.",
+        notes: [
+          "Ultrasonic sensors measure distance using sound waves",
+          "Analog sensors provide variable readings, digital sensors give on/off states",
+          "Calibration is essential for accurate sensor readings",
+          "Use pullup resistors for reliable digital sensor readings"
+        ],
         resources: [],
       },
       {
@@ -142,6 +174,14 @@ export const COURSES: Course[] = [
         duration: "2h 0m",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Put everything together to build your first autonomous robot! Combine circuits, programming, and sensors to create a robot that can navigate, avoid obstacles, and respond to its environment. This hands-on project brings together all the concepts you've learned.",
+        notes: [
+          "Start with a simple chassis and gradually add complexity",
+          "Test each component individually before integration",
+          "Document your wiring connections for troubleshooting",
+          "Iterative design: build, test, improve, repeat",
+          "Safety first: always disconnect power when wiring"
+        ],
         resources: [],
       },
     ],
@@ -171,6 +211,13 @@ export const COURSES: Course[] = [
         duration: "30 min",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Explore the fascinating world of artificial intelligence and understand what makes machines intelligent. Learn about the history of AI, its current applications, and the future potential of this revolutionary technology.",
+        notes: [
+          "AI is the simulation of human intelligence by machines",
+          "Types: Narrow AI (specific tasks) vs General AI (human-level intelligence)",
+          "Applications: virtual assistants, recommendation systems, autonomous vehicles",
+          "Machine learning is a subset of AI focused on learning from data"
+        ],
         resources: [],
       },
       {
@@ -179,6 +226,14 @@ export const COURSES: Course[] = [
         duration: "2h 0m",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Master Python programming essentials for AI development. Learn about NumPy for numerical computing, Pandas for data manipulation, and Matplotlib for visualization. Build a strong foundation in the language that powers modern AI.",
+        notes: [
+          "Python is the most popular language for AI/ML development",
+          "NumPy: efficient numerical operations on arrays",
+          "Pandas: powerful data manipulation and analysis",
+          "Matplotlib/Seaborn: data visualization libraries",
+          "Jupyter notebooks: interactive development environment"
+        ],
         resources: [],
       },
       {
@@ -187,6 +242,14 @@ export const COURSES: Course[] = [
         duration: "3h 20m",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Deep dive into core machine learning algorithms including linear regression, decision trees, and neural networks. Understand when to use each algorithm and how to evaluate model performance.",
+        notes: [
+          "Supervised Learning: classification and regression problems",
+          "Unsupervised Learning: clustering and dimensionality reduction",
+          "Key algorithms: Linear Regression, Decision Trees, Random Forests, K-Means",
+          "Model evaluation: accuracy, precision, recall, F1-score",
+          "Cross-validation: technique to assess model generalization"
+        ],
         resources: [],
       },
     ],
@@ -216,6 +279,14 @@ export const COURSES: Course[] = [
         duration: "1h 0m",
         isCompleted: true,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Get familiar with essential electronic components that form the building blocks of all circuits. Learn about resistors, capacitors, diodes, transistors, and integrated circuits through hands-on examples.",
+        notes: [
+          "Resistors: control current flow, measured in Ohms (Ω)",
+          "Capacitors: store electrical charge, measured in Farads (F)",
+          "Diodes: allow current flow in one direction only",
+          "Transistors: act as switches or amplifiers",
+          "ICs (Integrated Circuits): complex circuits on a single chip"
+        ],
         resources: [],
       },
       {
@@ -224,6 +295,14 @@ export const COURSES: Course[] = [
         duration: "1h 20m",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Master the fundamental laws of electronics. Understand Ohm's Law for calculating voltage, current, and resistance relationships, and apply Kirchhoff's laws to analyze complex circuits.",
+        notes: [
+          "Ohm's Law: V = I × R (Voltage = Current × Resistance)",
+          "Kirchhoff's Current Law (KCL): sum of currents at a node = 0",
+          "Kirchhoff's Voltage Law (KVL): sum of voltages in a loop = 0",
+          "Power calculation: P = V × I = I²R = V²/R",
+          "Use these laws to solve any circuit problem"
+        ],
         resources: [],
       },
     ],
@@ -253,6 +332,15 @@ export const COURSES: Course[] = [
         duration: "30 min",
         isCompleted: true,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Get started with Python programming by setting up your development environment and writing your first program. Learn about variables, data types, and basic input/output operations.",
+        notes: [
+          "Install Python from python.org",
+          "Use VS Code or PyCharm as your IDE",
+          "print() function displays output to console",
+          "input() function gets user input",
+          "Variables store data: name = 'John', age = 25",
+          "Basic data types: int, float, str, bool"
+        ],
         resources: [],
       },
     ],
@@ -282,6 +370,14 @@ export const COURSES: Course[] = [
         duration: "45 min",
         isCompleted: false,
         videoUrl: "https://www.w3schools.com/html/mov_bbb.mp4",
+        description: "Discover the Internet of Things ecosystem and learn how everyday devices connect to the internet to collect and exchange data. Explore IoT architecture, protocols, and real-world applications from smart homes to industrial automation.",
+        notes: [
+          "IoT connects physical devices to the internet for data exchange",
+          "Key components: sensors, actuators, connectivity, data processing",
+          "Common protocols: MQTT, HTTP, CoAP, WebSocket",
+          "Applications: smart homes, wearables, industrial IoT, agriculture",
+          "Security is critical in IoT implementations"
+        ],
         resources: [],
       },
     ],

@@ -33,8 +33,7 @@ export default function LearnScreen() {
 
   if (!course) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.foreground, padding: 24 }}>Course not found.</Text>
+      <View style={[styles.container, { backgroundColor: colors.background }]}>\n        <Text style={{ color: colors.foreground, padding: 24 }}>Course not found.</Text>
       </View>
     );
   }
@@ -124,8 +123,7 @@ export default function LearnScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
-    <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header */}
+    <View style={[styles.container, { backgroundColor: colors.background }]}>\n      {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         <Pressable onPress={() => router.back()} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color={colors.foreground} />

@@ -14,6 +14,7 @@ import { CourseCard } from "@/components/CourseCard";
 import { NewsCard } from "@/components/NewsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { WatchlistCard } from "@/components/WatchlistCard";
+import { LearningStreak } from "@/components/LearningStreak";
 import { useAuth } from "@/context/AuthContext";
 import { useProgress } from "@/context/ProgressContext";
 import { COURSES, NEWS_ITEMS, PRODUCTS } from "@/data/mockData";
@@ -29,12 +30,16 @@ export default function HomeScreen() {
 
   const enrolledCourses = Array.from(courseProgress.values());
   const completedCount = enrolledCourses.filter((p) => p.progress === 100).length;
+  const inProgressCount = enrolledCourses.filter((p) => p.progress > 0 && p.progress < 100).length;
   const avgProgress =
     enrolledCourses.length > 0
       ? Math.round(
           enrolledCourses.reduce((sum, p) => sum + p.progress, 0) / enrolledCourses.length
         )
       : 0;
+
+  // Mock learning streak (in real app, calculate from user activity)
+  const learningStreak = 5;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -63,24 +68,35 @@ export default function HomeScreen() {
       <View style={[styles.statsBanner, { backgroundColor: colors.primary }]}>
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{enrolledCourses.length}</Text>
-          <Text style={styles.statLabel}>Enrolled</Text>
+          <Text style={styles.statLabel}>Courses Enrolled</Text>
         </View>
         <View style={[styles.statDivider]} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{completedCount}</Text>
-          <Text style={styles.statLabel}>Completed</Text>
+          <Text style={styles.statLabel}>Courses Completed</Text>
         </View>
         <View style={styles.statDivider} />
         <View style={styles.statItem}>
           <Text style={styles.statNumber}>{avgProgress}%</Text>
-          <Text style={styles.statLabel}>Avg Progress</Text>
+          <Text style={styles.statLabel}>Average Progress</Text>
         </View>
       </View>
+
+      {/* Learning Streak */}
+      {enrolledCourses.length > 0 && (
+        <View style={styles.streakSection}>
+          <LearningStreak streak={learningStreak} bestStreak={7} />
+        </View>
+      )}
 
       {/* Continue Learning */}
       {watchlist.length > 0 && (
         <View style={styles.section}>
-          <SectionHeader title="Continue Watching" onSeeAll={() => router.push("/(tabs)/courses")} />
+          <SectionHeader 
+            title="Continue Watching" 
+            subtitle={`${watchlist.length} lesson${watchlist.length > 1 ? 's' : ''} in progress`}
+            onSeeAll={() => router.push("/(tabs)/courses")} 
+          />
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             {watchlist.map((item) => (
               <WatchlistCard key={`${item.courseId}-${item.moduleId}`} item={item} />
@@ -156,11 +172,17 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     flexDirection: "row",
     paddingVertical: 20,
-    marginBottom: 28,
+    marginBottom: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
   },
-  statItem: { flex: 1, alignItems: "center" },
-  statNumber: { fontSize: 24, fontWeight: "800", color: "#FFF" },
-  statLabel: { ...TEXT_STYLES.caption, fontWeight: "600", color: "rgba(255,255,255,0.85)", marginTop: 4 },
+  statItem: { flex: 1, alignItems: "center", paddingHorizontal: 4 },
+  statNumber: { fontSize: 26, fontWeight: "800", color: "#FFF", marginBottom: 2 },
+  statLabel: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.85)", marginTop: 4, textAlign: "center" },
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
+  streakSection: { marginHorizontal: 20, marginBottom: 28 },
   section: { marginBottom: 28, paddingHorizontal: 20 },
 });
