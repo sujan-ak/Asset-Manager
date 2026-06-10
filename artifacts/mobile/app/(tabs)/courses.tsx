@@ -98,8 +98,8 @@ const styles = StyleSheet.create({
   },
   chipText: { ...TEXT_STYLES.button, fontSize: 14, fontWeight: "700" },
   list: { paddingHorizontal: 20, paddingTop: 16, gap: 0 },
-  count: { ...TEXT_STYLES.caption, marginBottom: 12 },
+  count: { fontSize: 13, marginBottom: 12 },
   emptyState: { alignItems: "center", paddingTop: 60, gap: 8 },
-  emptyTitle: { ...TEXT_STYLES.h2, fontSize: 18, fontWeight: "700" },
-  emptySubtitle: TEXT_STYLES.body,
+  emptyTitle: { fontSize: 18, fontWeight: "700" },
+  emptySubtitle: { fontSize: 14 },
 });

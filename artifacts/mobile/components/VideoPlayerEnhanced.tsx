@@ -3,7 +3,7 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import * as Haptics from "expo-haptics";
 import * as ScreenOrientation from "expo-screen-orientation";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Animated, Platform, Pressable, StyleSheet, Text, View, Modal, StatusBar, Dimensions } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { PlaybackSpeedSelector } from "./PlaybackSpeedSelector";
 
@@ -30,12 +30,13 @@ export function VideoPlayerEnhanced({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastStatus, setLastStatus] = useState<string>(''); // Track last status to prevent log spam
   const videoContainerRef = useRef<any>(null); // Use 'any' for cross-platform ref compatibility
   
   const hasEmittedComplete = useRef(false);
   const lastSaveTime = useRef(0);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
-  const hideTimer = useRef<NodeJS.Timeout | null>(null);
+  const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const player = useVideoPlayer(videoUrl, (player) => {
     player.loop = false;
@@ -97,12 +98,15 @@ export function VideoPlayerEnhanced({
       setIsLoading(loading);
       onLoadingStateChange?.(loading);
       
-      // Debug logging (remove in production)
-      if (status === "readyToPlay" || status === "idle") {
-        console.log("[VideoPlayer] Video ready - Status:", status, "Duration:", durationT);
-      }
-      if (status === "error") {
-        console.error("[VideoPlayer] Video error detected");
+      // Debug logging - only log when status changes to prevent spam
+      if (status !== lastStatus) {
+        if (status === "readyToPlay" || status === "idle") {
+          console.log("[VideoPlayer] Video ready - Status:", status, "Duration:", durationT);
+        }
+        if (status === "error") {
+          console.error("[VideoPlayer] Video error detected");
+        }
+        setLastStatus(status);
       }
 
       // Save progress every 5 seconds
@@ -268,15 +272,15 @@ export function VideoPlayerEnhanced({
           }
         }
       } else {
-        // Native platforms: Use ScreenOrientation API
+        // Native platforms: Use Modal + ScreenOrientation
         if (!isFullscreen) {
           // Enter fullscreen - lock to landscape
-          await ScreenOrientation.lockAsync(3); // 3 = LANDSCAPE
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
           setIsFullscreen(true);
           console.log('[VideoPlayer] Entered fullscreen - landscape mode');
         } else {
           // Exit fullscreen - lock to portrait
-          await ScreenOrientation.lockAsync(1); // 1 = PORTRAIT_UP
+          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
           setIsFullscreen(false);
           console.log('[VideoPlayer] Exited fullscreen - portrait mode');
         }
@@ -297,110 +301,157 @@ export function VideoPlayerEnhanced({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  return (
-    <View style={styles.container}>
-      <Pressable
-        ref={videoContainerRef}
-        style={styles.videoContainer}
-        onPress={showControlsWithTimer}
+  // Get dynamic screen dimensions for fullscreen
+  const screenWidth = Dimensions.get('window').width;
+  const screenHeight = Dimensions.get('window').height;
+
+  // Render video controls (shared between normal and fullscreen)
+  const renderVideoControls = () => (
+    <>
+      {/* Loading Overlay */}
+      {isLoading && (
+        <View style={styles.loadingOverlay}>
+          <View style={[styles.loadingContainer, { backgroundColor: colors.card }]}>
+            <Text style={[styles.loadingText, { color: colors.foreground }]}>Loading Lesson...</Text>
+            <Text style={[styles.debugText, { color: colors.mutedForeground, marginTop: 4 }]}>
+              {player?.status || 'initializing'}
+            </Text>
+          </View>
+        </View>
+      )}
+
+      {/* Controls Overlay */}
+      <Animated.View 
+        style={[
+          styles.controlsOverlay, 
+          { opacity: overlayOpacity }
+        ]}
+        pointerEvents={showControls ? "auto" : "none"}
       >
-        <VideoView
-          player={player}
-          style={styles.video}
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-        />
+        {/* Top Bar */}
+        <View style={styles.topBar}>
+          <View style={{ flex: 1 }} />
+          <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
+            <Feather
+              name={isFullscreen ? "minimize" : "maximize"}
+              size={20}
+              color="#FFF"
+            />
+          </Pressable>
+        </View>
 
-        {/* Loading Overlay */}
-        {isLoading && (
-          <View style={styles.loadingOverlay}>
-            <View style={[styles.loadingContainer, { backgroundColor: colors.card }]}>
-              <Text style={[styles.loadingText, { color: colors.foreground }]}>Loading Lesson...</Text>
-              <Text style={[styles.debugText, { color: colors.mutedForeground, marginTop: 4 }]}>
-                {player?.status || 'initializing'}
-              </Text>
-            </View>
+        {/* Center Controls */}
+        <View style={styles.centerControls}>
+          <Pressable onPress={skipBackward} style={styles.skipButton}>
+            <Feather name="rotate-ccw" size={24} color="#FFF" />
+            <Text style={styles.skipLabel}>10s</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={togglePlayPause}
+            style={[styles.playButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+          >
+            <Feather name={isPlaying ? "pause" : "play"} size={32} color="#FFF" />
+          </Pressable>
+
+          <Pressable onPress={skipForward} style={styles.skipButton}>
+            <Feather name="rotate-cw" size={24} color="#FFF" />
+            <Text style={styles.skipLabel}>10s</Text>
+          </Pressable>
+        </View>
+
+        {/* Bottom Bar */}
+        <View style={styles.bottomBar}>
+          {/* Progress Bar */}
+          <View style={styles.progressContainer}>
+            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
+            
+            <Pressable style={styles.progressTrack} onPress={handleProgressTap}>
+              <View style={styles.progressBackground} />
+              <View
+                style={[
+                  styles.progressFill,
+                  { 
+                    width: `${progressPercentage}%`, 
+                    backgroundColor: colors.primary 
+                  },
+                ]}
+              />
+            </Pressable>
+            
+            <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
-        )}
 
-        {/* Controls Overlay */}
-        <Animated.View 
-          style={[
-            styles.controlsOverlay, 
-            { opacity: overlayOpacity }
-          ]}
-          pointerEvents={showControls ? "auto" : "none"}
+          {/* Control Buttons */}
+          <View style={styles.controlButtons}>
+            <PlaybackSpeedSelector
+              currentSpeed={playbackSpeed}
+              onSpeedChange={handleSpeedChange}
+            />
+            
+            <Pressable onPress={togglePlayPause} style={styles.iconButton}>
+              <Feather name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
+            </Pressable>
+          </View>
+        </View>
+      </Animated.View>
+    </>
+  );
+
+  return (
+    <>
+      {/* Normal View */}
+      <View style={styles.container}>
+        <Pressable
+          ref={videoContainerRef}
+          style={styles.videoContainer}
+          onPress={showControlsWithTimer}
         >
-          {/* Top Bar */}
-          <View style={styles.topBar}>
-            <View style={{ flex: 1 }} />
-            <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
-              <Feather
-                name={isFullscreen ? "minimize" : "maximize"}
-                size={20}
-                color="#FFF"
-              />
-            </Pressable>
-          </View>
+          <VideoView
+            player={player}
+            style={styles.video}
+            nativeControls={false}
+            contentFit="contain"
+            allowsPictureInPicture={false}
+          />
+          {renderVideoControls()}
+        </Pressable>
+      </View>
 
-          {/* Center Controls */}
-          <View style={styles.centerControls}>
-            <Pressable onPress={skipBackward} style={styles.skipButton}>
-              <Feather name="rotate-ccw" size={24} color="#FFF" />
-              <Text style={styles.skipLabel}>10s</Text>
-            </Pressable>
-
+      {/* Fullscreen Modal (Native only) */}
+      {Platform.OS !== 'web' && (
+        <Modal
+          visible={isFullscreen}
+          animationType="fade"
+          onRequestClose={toggleFullscreen}
+          supportedOrientations={['landscape', 'portrait']}
+        >
+          <StatusBar hidden />
+          <View style={styles.fullscreenContainer}>
             <Pressable
-              onPress={togglePlayPause}
-              style={[styles.playButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+              style={{
+                width: screenWidth,
+                height: screenHeight,
+                position: "relative",
+              }}
+              onPress={showControlsWithTimer}
             >
-              <Feather name={isPlaying ? "pause" : "play"} size={32} color="#FFF" />
-            </Pressable>
-
-            <Pressable onPress={skipForward} style={styles.skipButton}>
-              <Feather name="rotate-cw" size={24} color="#FFF" />
-              <Text style={styles.skipLabel}>10s</Text>
-            </Pressable>
-          </View>
-
-          {/* Bottom Bar */}
-          <View style={styles.bottomBar}>
-            {/* Progress Bar */}
-            <View style={styles.progressContainer}>
-              <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-              
-              <Pressable style={styles.progressTrack} onPress={handleProgressTap}>
-                <View style={styles.progressBackground} />
-                <View
-                  style={[
-                    styles.progressFill,
-                    { 
-                      width: `${progressPercentage}%`, 
-                      backgroundColor: colors.primary 
-                    },
-                  ]}
-                />
-              </Pressable>
-              
-              <Text style={styles.timeText}>{formatTime(duration)}</Text>
-            </View>
-
-            {/* Control Buttons */}
-            <View style={styles.controlButtons}>
-              <PlaybackSpeedSelector
-                currentSpeed={playbackSpeed}
-                onSpeedChange={handleSpeedChange}
+              <VideoView
+                player={player}
+                style={{
+                  width: screenWidth,
+                  height: screenHeight,
+                }}
+                nativeControls={false}
+                contentFit="contain"
+                allowsPictureInPicture={false}
               />
-              
-              <Pressable onPress={togglePlayPause} style={styles.iconButton}>
-                <Feather name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
-              </Pressable>
-            </View>
+              {renderVideoControls()}
+            </Pressable>
           </View>
-        </Animated.View>
-      </Pressable>
-    </View>
+        </Modal>
+      )}
+    </>
   );
 }
 
@@ -418,6 +469,10 @@ const styles = StyleSheet.create({
   video: {
     width: "100%",
     height: "100%",
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: "#000",
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,

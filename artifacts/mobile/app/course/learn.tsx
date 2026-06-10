@@ -55,17 +55,19 @@ export default function LearnScreen() {
   // Check for resume modal when module changes
   useEffect(() => {
     const moduleProgress = getModuleProgress(courseId, activeModuleId);
-    if (activeModuleId && moduleProgress?.videoProgress.currentTime > 30) {
-      setResumeFromTime(moduleProgress.videoProgress.currentTime);
+    const savedTime = moduleProgress?.videoProgress?.currentTime;
+    if (activeModuleId && savedTime && savedTime > 30) {
+      setResumeFromTime(savedTime);
       setShowResumeModal(true);
     }
   }, [activeModuleId]);
 
   const activeModule = course.modules.find((m) => m.id === activeModuleId) ?? course.modules[0];
   const moduleProgress = getModuleProgress(courseId, activeModule.id);
-  const initialTime = showResumeModal ? 0 : (moduleProgress?.videoProgress.currentTime || 0);
+  const initialTime = showResumeModal ? 0 : (moduleProgress?.videoProgress?.currentTime ?? 0);
 
   const handleProgressUpdate = async (currentTime: number, duration: number) => {
+    if (!courseId || !activeModule?.id) return;
     await updateVideoProgress(courseId, activeModule.id, currentTime, duration, activeModule.videoUrl);
   };
 

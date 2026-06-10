@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 20,
   },
-  greeting: TEXT_STYLES.body,
-  userName: { ...TEXT_STYLES.pageTitle, fontSize: 22, fontWeight: "800" },
+  greeting: { fontSize: 14 },
+  userName: { fontSize: 22, fontWeight: "800" },
   notifBtn: {
     width: 44,
     height: 44,

@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useVideoPlayer, VideoView } from "expo-video";
+import * as ScreenOrientation from "expo-screen-orientation";
 import React, { useEffect, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Modal, Pressable, StatusBar, StyleSheet, Text, View, Dimensions } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
 interface VideoPlayerProps {
@@ -74,10 +75,30 @@ export function VideoPlayer({ videoUrl, initialTime = 0, onProgressUpdate, onCom
     setIsPlaying(!isPlaying);
   };
 
-  const toggleFullscreen = () => {
-    setIsFullscreen(!isFullscreen);
-    // Note: Full native fullscreen requires platform-specific implementation
-    // This is a placeholder for the UI state
+  const toggleFullscreen = async () => {
+    if (!isFullscreen) {
+      // Entering fullscreen
+      try {
+        // Lock to landscape orientation
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
+        setIsFullscreen(true);
+      } catch (error) {
+        console.error("Failed to lock orientation:", error);
+        // Fallback: still show fullscreen without orientation lock
+        setIsFullscreen(true);
+      }
+    } else {
+      // Exiting fullscreen
+      try {
+        // Unlock orientation and return to portrait
+        await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+        setIsFullscreen(false);
+      } catch (error) {
+        console.error("Failed to unlock orientation:", error);
+        // Fallback: still exit fullscreen
+        setIsFullscreen(false);
+      }
+    }
   };
 
   const formatTime = (seconds: number) => {
@@ -88,72 +109,104 @@ export function VideoPlayer({ videoUrl, initialTime = 0, onProgressUpdate, onCom
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  return (
-    <View style={styles.container}>
-      <Pressable
-        style={styles.videoContainer}
-        onPress={() => setShowControls(!showControls)}
-      >
-        <VideoView
-          player={player}
-          style={styles.video}
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-        />
+  const renderVideoControls = () => (
+    <>
+      {showControls && (
+        <View style={styles.controlsOverlay}>
+          {/* Top Bar */}
+          <View style={[styles.topBar, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
+            <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
+              <Feather
+                name={isFullscreen ? "minimize" : "maximize"}
+                size={20}
+                color="#FFF"
+              />
+            </Pressable>
+          </View>
 
-        {/* Controls Overlay */}
-        {showControls && (
-          <View style={styles.controlsOverlay}>
-            {/* Top Bar */}
-            <View style={[styles.topBar, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
-              <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
-                <Feather
-                  name={isFullscreen ? "minimize" : "maximize"}
-                  size={20}
-                  color="#FFF"
+          {/* Center Play Button */}
+          <View style={styles.centerControls}>
+            <Pressable
+              onPress={togglePlayPause}
+              style={[styles.playButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+            >
+              <Feather name={isPlaying ? "pause" : "play"} size={40} color="#FFF" />
+            </Pressable>
+          </View>
+
+          {/* Bottom Bar */}
+          <View style={[styles.bottomBar, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
+            {/* Time Display */}
+            <View style={styles.timeRow}>
+              <Text style={styles.timeText}>
+                {formatTime(currentTime)} / {formatTime(duration)}
+              </Text>
+              <Pressable onPress={togglePlayPause} style={styles.iconButton}>
+                <Feather name={isPlaying ? "pause" : "play"} size={24} color="#FFF" />
+              </Pressable>
+            </View>
+
+            {/* Progress Bar */}
+            <View style={styles.progressContainer}>
+              <View style={styles.progressTrack}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    { width: `${progressPercentage}%`, backgroundColor: colors.primary },
+                  ]}
                 />
-              </Pressable>
-            </View>
-
-            {/* Center Play Button */}
-            <View style={styles.centerControls}>
-              <Pressable
-                onPress={togglePlayPause}
-                style={[styles.playButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
-              >
-                <Feather name={isPlaying ? "pause" : "play"} size={40} color="#FFF" />
-              </Pressable>
-            </View>
-
-            {/* Bottom Bar */}
-            <View style={[styles.bottomBar, { backgroundColor: "rgba(0,0,0,0.6)" }]}>
-              {/* Time Display */}
-              <View style={styles.timeRow}>
-                <Text style={styles.timeText}>
-                  {formatTime(currentTime)} / {formatTime(duration)}
-                </Text>
-                <Pressable onPress={togglePlayPause} style={styles.iconButton}>
-                  <Feather name={isPlaying ? "pause" : "play"} size={24} color="#FFF" />
-                </Pressable>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={styles.progressTrack}>
-                  <View
-                    style={[
-                      styles.progressFill,
-                      { width: `${progressPercentage}%`, backgroundColor: colors.primary },
-                    ]}
-                  />
-                </View>
               </View>
             </View>
           </View>
-        )}
-      </Pressable>
-    </View>
+        </View>
+      )}
+    </>
+  );
+
+  return (
+    <>
+      {/* Normal View */}
+      <View style={styles.container}>
+        <Pressable
+          style={styles.videoContainer}
+          onPress={() => setShowControls(!showControls)}
+        >
+          <VideoView
+            player={player}
+            style={styles.video}
+            nativeControls={false}
+            allowsFullscreen={false}
+            allowsPictureInPicture={false}
+          />
+          {renderVideoControls()}
+        </Pressable>
+      </View>
+
+      {/* Fullscreen Modal */}
+      <Modal
+        visible={isFullscreen}
+        animationType="fade"
+        onRequestClose={toggleFullscreen}
+        supportedOrientations={['landscape', 'portrait']}
+      >
+        <StatusBar hidden />
+        <View style={styles.fullscreenContainer}>
+          <Pressable
+            style={styles.fullscreenVideoContainer}
+            onPress={() => setShowControls(!showControls)}
+          >
+            <VideoView
+              player={player}
+              style={styles.fullscreenVideo}
+              nativeControls={false}
+              allowsFullscreen={false}
+              allowsPictureInPicture={false}
+            />
+            {renderVideoControls()}
+          </Pressable>
+        </View>
+      </Modal>
+    </>
   );
 }
 
@@ -169,6 +222,21 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   video: {
+    width: "100%",
+    height: "100%",
+  },
+  fullscreenContainer: {
+    flex: 1,
+    backgroundColor: "#000",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  fullscreenVideoContainer: {
+    width: Dimensions.get('window').width,
+    height: Dimensions.get('window').height,
+    position: "relative",
+  },
+  fullscreenVideo: {
     width: "100%",
     height: "100%",
   },
