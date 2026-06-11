@@ -12,7 +12,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { COURSES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 
@@ -56,7 +56,8 @@ export default function ProfileScreen() {
       title: "Learning",
       items: [
         { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
-        { icon: "shopping-bag", label: "My Orders", onPress: () => router.push("/store/orders") },
+        { icon: "shopping-bag", label: "Store", onPress: () => router.push("/(tabs)/store") },
+        { icon: "shopping-cart", label: "My Orders", onPress: () => router.push("/store/orders") },
         { icon: "award", label: "Achievements", onPress: () => {} },
       ],
     },

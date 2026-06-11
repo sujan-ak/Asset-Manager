@@ -14,7 +14,8 @@ import { KeyboardProvider } from "react-native-keyboard-controller";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 
 import { ErrorBoundary } from "@/components/ErrorBoundary";
-import { AuthProvider } from "@/context/AuthContext";
+import { AuthProvider } from "@/context/AuthContextSupabase";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { CartProvider } from "@/context/CartContext";
 import { ProgressProvider } from "@/context/ProgressContext";
 import { useColors } from "@/hooks/useColors";
@@ -76,9 +77,11 @@ export default function RootLayout() {
             <KeyboardProvider>
               <AuthProvider>
                 <ProgressProvider>
-                  <CartProvider>
-                    <RootLayoutNav />
-                  </CartProvider>
+                  <ProtectedRoute>
+                    <CartProvider>
+                      <RootLayoutNav />
+                    </CartProvider>
+                  </ProtectedRoute>
                 </ProgressProvider>
               </AuthProvider>
             </KeyboardProvider>

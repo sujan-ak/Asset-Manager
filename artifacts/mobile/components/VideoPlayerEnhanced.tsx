@@ -3,7 +3,18 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import * as Haptics from "expo-haptics";
 import * as ScreenOrientation from "expo-screen-orientation";
 import React, { useEffect, useRef, useState } from "react";
-import { Animated, Platform, Pressable, StyleSheet, Text, View, Modal, StatusBar, Dimensions } from "react-native";
+import {
+  Animated,
+  Dimensions,
+  Platform,
+  Pressable,
+  StyleSheet,
+  Text,
+  View,
+  Modal,
+  StatusBar,
+} from "react-native";
+import Slider from "@react-native-community/slider";
 import { useColors } from "@/hooks/useColors";
 import { PlaybackSpeedSelector } from "./PlaybackSpeedSelector";
 
@@ -15,12 +26,12 @@ interface VideoPlayerProps {
   onLoadingStateChange?: (isLoading: boolean) => void;
 }
 
-export function VideoPlayerEnhanced({ 
-  videoUrl, 
-  initialTime = 0, 
-  onProgressUpdate, 
+export function VideoPlayerEnhanced({
+  videoUrl,
+  initialTime = 0,
+  onProgressUpdate,
   onComplete,
-  onLoadingStateChange 
+  onLoadingStateChange,
 }: VideoPlayerProps) {
   const colors = useColors();
   const [showControls, setShowControls] = useState(true);
@@ -30,23 +41,34 @@ export function VideoPlayerEnhanced({
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
-  const [lastStatus, setLastStatus] = useState<string>(''); // Track last status to prevent log spam
-  const videoContainerRef = useRef<any>(null); // Use 'any' for cross-platform ref compatibility
-  
+  const [lastStatus, setLastStatus] = useState<string>("");
+
+  // FIX: Dynamic dimensions that update on orientation change
+  const [screenDims, setScreenDims] = useState(Dimensions.get("window"));
+
   const hasEmittedComplete = useRef(false);
   const lastSaveTime = useRef(0);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoContainerRef = useRef<any>(null);
 
   const player = useVideoPlayer(videoUrl, (player) => {
     player.loop = false;
     player.muted = false;
-    if (initialTime > 0) {
+    // Only restore if meaningful progress (>30s to avoid demo artifacts)
+    if (initialTime > 30) {
       player.currentTime = initialTime;
     }
-    // Don't auto-play initially
   });
-  
+
+  // FIX: Listen for dimension changes (fires when device rotates)
+  useEffect(() => {
+    const subscription = Dimensions.addEventListener("change", ({ window }) => {
+      setScreenDims(window);
+    });
+    return () => subscription.remove();
+  }, []);
+
   // Debug video URL on mount
   useEffect(() => {
     console.log("[VideoPlayer] Initializing with URL:", videoUrl);
@@ -61,11 +83,11 @@ export function VideoPlayerEnhanced({
       duration: 200,
       useNativeDriver: true,
     }).start();
-    
+
     if (hideTimer.current) {
       clearTimeout(hideTimer.current);
     }
-    
+
     hideTimer.current = setTimeout(() => {
       if (isPlaying) {
         Animated.timing(overlayOpacity, {
@@ -87,21 +109,23 @@ export function VideoPlayerEnhanced({
       const currentT = player.currentTime;
       const durationT = player.duration;
       const status = player.status;
-      
+
       setIsPlaying(playing);
       setCurrentTime(currentT);
       setDuration(durationT);
-      
-      // Handle loading state - only show loading when status is "loading"
-      // Status values: "idle" | "loading" | "readyToPlay" | "error"
+
       const loading = status === "loading";
       setIsLoading(loading);
       onLoadingStateChange?.(loading);
-      
-      // Debug logging - only log when status changes to prevent spam
+
       if (status !== lastStatus) {
         if (status === "readyToPlay" || status === "idle") {
-          console.log("[VideoPlayer] Video ready - Status:", status, "Duration:", durationT);
+          console.log(
+            "[VideoPlayer] Video ready - Status:",
+            status,
+            "Duration:",
+            durationT
+          );
         }
         if (status === "error") {
           console.error("[VideoPlayer] Video error detected");
@@ -133,7 +157,7 @@ export function VideoPlayerEnhanced({
   useEffect(() => {
     showControlsWithTimer();
   }, [isPlaying]);
-  
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
@@ -145,40 +169,48 @@ export function VideoPlayerEnhanced({
 
   // Listen for fullscreen changes (web platform)
   useEffect(() => {
-    if (Platform.OS !== 'web') return;
+    if (Platform.OS !== "web") return;
 
     const handleFullscreenChange = () => {
-      const isCurrentlyFullscreen = !!(document.fullscreenElement || (document as any).webkitFullscreenElement);
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement
+      );
       if (isCurrentlyFullscreen !== isFullscreen) {
         setIsFullscreen(isCurrentlyFullscreen);
-        console.log('[VideoPlayer] Fullscreen state changed:', isCurrentlyFullscreen);
+        console.log(
+          "[VideoPlayer] Fullscreen state changed:",
+          isCurrentlyFullscreen
+        );
       }
     };
 
-    document.addEventListener('fullscreenchange', handleFullscreenChange);
-    document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+    document.addEventListener("fullscreenchange", handleFullscreenChange);
+    document.addEventListener(
+      "webkitfullscreenchange",
+      handleFullscreenChange
+    );
 
     return () => {
-      document.removeEventListener('fullscreenchange', handleFullscreenChange);
-      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange);
+      document.removeEventListener("fullscreenchange", handleFullscreenChange);
+      document.removeEventListener(
+        "webkitfullscreenchange",
+        handleFullscreenChange
+      );
     };
   }, [isFullscreen]);
 
   const togglePlayPause = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    
-    // Check if video has ended (at or near end)
+
     const isAtEnd = duration > 0 && currentTime >= duration - 0.5;
-    
+
     if (isPlaying) {
-      // Video is playing - pause it
       player.pause();
     } else {
-      // Video is paused or ended
       if (isAtEnd) {
-        // Video has ended - replay from beginning
         player.currentTime = 0;
-        hasEmittedComplete.current = false; // Reset completion flag
+        hasEmittedComplete.current = false;
       }
       player.play();
     }
@@ -188,7 +220,6 @@ export function VideoPlayerEnhanced({
   const skipForward = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!duration || duration <= 0 || !isFinite(duration)) return;
-    
     const newTime = Math.min(duration, currentTime + 10);
     if (isFinite(newTime)) {
       player.currentTime = newTime;
@@ -207,87 +238,82 @@ export function VideoPlayerEnhanced({
 
   const handleSpeedChange = async (speed: number) => {
     try {
-      // expo-video uses direct property assignment, not a method
       player.playbackRate = speed;
       setPlaybackSpeed(speed);
       showControlsWithTimer();
-      console.log('[VideoPlayer] Playback speed changed to:', speed);
+      console.log("[VideoPlayer] Playback speed changed to:", speed);
     } catch (error) {
-      console.error('[VideoPlayer] Failed to change playback speed:', error);
+      console.error("[VideoPlayer] Failed to change playback speed:", error);
     }
   };
 
-  const handleProgressTap = (event: any) => {
-    // Guard: only allow seeking if video has valid duration
+  const handleSliderChange = (value: number) => {
     if (!duration || duration <= 0 || !isFinite(duration)) {
-      console.warn('[VideoPlayer] Cannot seek - invalid duration:', duration);
+      console.warn("[VideoPlayer] Cannot seek - invalid duration:", duration);
       return;
     }
 
-    const { locationX } = event.nativeEvent;
-    // Get the actual width from the event target or use a safe fallback
-    const progressWidth = event.nativeEvent?.target?.offsetWidth || 300;
-    
-    // Calculate percentage with bounds checking
-    const percentage = Math.max(0, Math.min(1, locationX / progressWidth));
-    const newTime = percentage * duration;
-    
-    // Safety check: ensure newTime is finite before setting
+    const newTime = value;
     if (isFinite(newTime) && newTime >= 0) {
       player.currentTime = newTime;
-      showControlsWithTimer();
     } else {
-      console.warn('[VideoPlayer] Invalid seek time calculated:', newTime);
+      console.warn("[VideoPlayer] Invalid seek time calculated:", newTime);
     }
+  };
+
+  const handleSliderStart = () => {
+    // Show controls when starting to drag
+    showControlsWithTimer();
+  };
+
+  const handleSliderComplete = async () => {
+    // Haptic feedback when done dragging
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showControlsWithTimer();
   };
 
   const toggleFullscreen = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    
+
     try {
-      if (Platform.OS === 'web') {
-        // Web platform: Use Fullscreen API
+      if (Platform.OS === "web") {
         if (!isFullscreen) {
-          // Enter fullscreen
           const element = videoContainerRef.current as any;
           if (element?.requestFullscreen) {
             await element.requestFullscreen();
             setIsFullscreen(true);
-            console.log('[VideoPlayer] Entered fullscreen (web)');
           } else if (element?.webkitRequestFullscreen) {
             await element.webkitRequestFullscreen();
             setIsFullscreen(true);
-            console.log('[VideoPlayer] Entered fullscreen (webkit)');
           }
         } else {
-          // Exit fullscreen
           if (document.exitFullscreen) {
             await document.exitFullscreen();
             setIsFullscreen(false);
-            console.log('[VideoPlayer] Exited fullscreen (web)');
           } else if ((document as any).webkitExitFullscreen) {
             await (document as any).webkitExitFullscreen();
             setIsFullscreen(false);
-            console.log('[VideoPlayer] Exited fullscreen (webkit)');
           }
         }
       } else {
-        // Native platforms: Use Modal + ScreenOrientation
+        // FIX: Show modal FIRST then rotate when entering,
+        //      rotate back FIRST then hide modal when exiting
         if (!isFullscreen) {
-          // Enter fullscreen - lock to landscape
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.LANDSCAPE);
           setIsFullscreen(true);
-          console.log('[VideoPlayer] Entered fullscreen - landscape mode');
+          await ScreenOrientation.lockAsync(
+            ScreenOrientation.OrientationLock.LANDSCAPE
+          );
+          console.log("[VideoPlayer] Entered fullscreen - landscape mode");
         } else {
-          // Exit fullscreen - lock to portrait
-          await ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT_UP);
+          await ScreenOrientation.lockAsync(
+            ScreenOrientation.OrientationLock.PORTRAIT_UP
+          );
           setIsFullscreen(false);
-          console.log('[VideoPlayer] Exited fullscreen - portrait mode');
+          console.log("[VideoPlayer] Exited fullscreen - portrait mode");
         }
       }
     } catch (error) {
-      console.error('[VideoPlayer] Fullscreen toggle failed:', error);
-      // Fallback: Just toggle state without fullscreen
+      console.error("[VideoPlayer] Fullscreen toggle failed:", error);
       setIsFullscreen(!isFullscreen);
     }
     showControlsWithTimer();
@@ -301,31 +327,32 @@ export function VideoPlayerEnhanced({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // Get dynamic screen dimensions for fullscreen
-  const screenWidth = Dimensions.get('window').width;
-  const screenHeight = Dimensions.get('window').height;
-
-  // Render video controls (shared between normal and fullscreen)
   const renderVideoControls = () => (
     <>
       {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <View style={[styles.loadingContainer, { backgroundColor: colors.card }]}>
-            <Text style={[styles.loadingText, { color: colors.foreground }]}>Loading Lesson...</Text>
-            <Text style={[styles.debugText, { color: colors.mutedForeground, marginTop: 4 }]}>
-              {player?.status || 'initializing'}
+          <View
+            style={[styles.loadingContainer, { backgroundColor: colors.card }]}
+          >
+            <Text style={[styles.loadingText, { color: colors.foreground }]}>
+              Loading Lesson...
+            </Text>
+            <Text
+              style={[
+                styles.debugText,
+                { color: colors.mutedForeground, marginTop: 4 },
+              ]}
+            >
+              {player?.status || "initializing"}
             </Text>
           </View>
         </View>
       )}
 
       {/* Controls Overlay */}
-      <Animated.View 
-        style={[
-          styles.controlsOverlay, 
-          { opacity: overlayOpacity }
-        ]}
+      <Animated.View
+        style={[styles.controlsOverlay, { opacity: overlayOpacity }]}
         pointerEvents={showControls ? "auto" : "none"}
       >
         {/* Top Bar */}
@@ -349,9 +376,16 @@ export function VideoPlayerEnhanced({
 
           <Pressable
             onPress={togglePlayPause}
-            style={[styles.playButton, { backgroundColor: "rgba(0,0,0,0.6)" }]}
+            style={[
+              styles.playButton,
+              { backgroundColor: "rgba(0,0,0,0.6)" },
+            ]}
           >
-            <Feather name={isPlaying ? "pause" : "play"} size={32} color="#FFF" />
+            <Feather
+              name={isPlaying ? "pause" : "play"}
+              size={32}
+              color="#FFF"
+            />
           </Pressable>
 
           <Pressable onPress={skipForward} style={styles.skipButton}>
@@ -362,23 +396,23 @@ export function VideoPlayerEnhanced({
 
         {/* Bottom Bar */}
         <View style={styles.bottomBar}>
-          {/* Progress Bar */}
+          {/* Progress Bar - Now draggable slider */}
           <View style={styles.progressContainer}>
             <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-            
-            <Pressable style={styles.progressTrack} onPress={handleProgressTap}>
-              <View style={styles.progressBackground} />
-              <View
-                style={[
-                  styles.progressFill,
-                  { 
-                    width: `${progressPercentage}%`, 
-                    backgroundColor: colors.primary 
-                  },
-                ]}
-              />
-            </Pressable>
-            
+
+            <Slider
+              style={styles.progressSlider}
+              value={currentTime}
+              minimumValue={0}
+              maximumValue={duration || 1}
+              minimumTrackTintColor={colors.primary}
+              maximumTrackTintColor="rgba(255,255,255,0.3)"
+              thumbTintColor={colors.primary}
+              onValueChange={handleSliderChange}
+              onSlidingStart={handleSliderStart}
+              onSlidingComplete={handleSliderComplete}
+            />
+
             <Text style={styles.timeText}>{formatTime(duration)}</Text>
           </View>
 
@@ -388,9 +422,13 @@ export function VideoPlayerEnhanced({
               currentSpeed={playbackSpeed}
               onSpeedChange={handleSpeedChange}
             />
-            
+
             <Pressable onPress={togglePlayPause} style={styles.iconButton}>
-              <Feather name={isPlaying ? "pause" : "play"} size={20} color="#FFF" />
+              <Feather
+                name={isPlaying ? "pause" : "play"}
+                size={20}
+                color="#FFF"
+              />
             </Pressable>
           </View>
         </View>
@@ -411,7 +449,7 @@ export function VideoPlayerEnhanced({
             player={player}
             style={styles.video}
             nativeControls={false}
-            contentFit="contain"
+            contentFit="cover"
             allowsPictureInPicture={false}
           />
           {renderVideoControls()}
@@ -419,31 +457,30 @@ export function VideoPlayerEnhanced({
       </View>
 
       {/* Fullscreen Modal (Native only) */}
-      {Platform.OS !== 'web' && (
+      {Platform.OS !== "web" && (
         <Modal
           visible={isFullscreen}
           animationType="fade"
+          statusBarTranslucent={true}
           onRequestClose={toggleFullscreen}
-          supportedOrientations={['landscape', 'portrait']}
+          supportedOrientations={[
+            "landscape",
+            "landscape-left",
+            "landscape-right",
+            "portrait",
+          ]}
         >
-          <StatusBar hidden />
+          <StatusBar hidden={true} translucent={true} />
           <View style={styles.fullscreenContainer}>
             <Pressable
-              style={{
-                width: screenWidth,
-                height: screenHeight,
-                position: "relative",
-              }}
+              style={styles.fullscreenVideoContainer}
               onPress={showControlsWithTimer}
             >
               <VideoView
                 player={player}
-                style={{
-                  width: screenWidth,
-                  height: screenHeight,
-                }}
+                style={styles.fullscreenVideo}
                 nativeControls={false}
-                contentFit="contain"
+                contentFit="cover"
                 allowsPictureInPicture={false}
               />
               {renderVideoControls()}
@@ -473,6 +510,18 @@ const styles = StyleSheet.create({
   fullscreenContainer: {
     flex: 1,
     backgroundColor: "#000",
+  },
+  // FIX: flex-based sizing instead of hardcoded Dimensions px values
+  fullscreenVideoContainer: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
+    position: "relative",
+  },
+  fullscreenVideo: {
+    flex: 1,
+    width: "100%",
+    height: "100%",
   },
   loadingOverlay: {
     ...StyleSheet.absoluteFillObject,
@@ -552,22 +601,9 @@ const styles = StyleSheet.create({
     minWidth: 40,
     textAlign: "center",
   },
-  progressTrack: {
+  progressSlider: {
     flex: 1,
-    height: 20,
-    justifyContent: "center",
-  },
-  progressBackground: {
-    position: "absolute",
-    width: "100%",
-    height: 4,
-    backgroundColor: "rgba(255,255,255,0.3)",
-    borderRadius: 2,
-  },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
-    minWidth: 4,
+    height: 40,
   },
   controlButtons: {
     flexDirection: "row",

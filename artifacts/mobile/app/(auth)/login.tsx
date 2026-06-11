@@ -15,18 +15,33 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useColors } from "@/hooks/useColors";
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login } = useAuth();
+  const { login, loginWithGoogle } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleGoogleLogin() {
+    setError("");
+    setGoogleLoading(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const result = await loginWithGoogle();
+    
+    if (!result.success) {
+      setGoogleLoading(false);
+      setError(result.error || "Google sign-in failed. Please try again.");
+    }
+    // Don't set loading to false on success - the OAuth flow will handle redirect
+  }
 
   async function handleLogin() {
     if (!email || !password) {
@@ -36,12 +51,14 @@ export default function LoginScreen() {
     setError("");
     setLoading(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const ok = await login(email, password);
+    
+    const result = await login(email, password);
     setLoading(false);
-    if (ok) {
+    
+    if (result.success) {
       router.replace("/(tabs)");
     } else {
-      setError("Invalid credentials. Please try again.");
+      setError(result.error || "Invalid credentials. Please try again.");
     }
   }
 
@@ -133,9 +150,17 @@ export default function LoginScreen() {
               styles.googleBtn,
               { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
             ]}
-            onPress={handleLogin}
+            onPress={handleGoogleLogin}
+            disabled={googleLoading}
           >
-            <Text style={[styles.googleBtnText, { color: colors.foreground }]}>Continue with Google</Text>
+            {googleLoading ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="chrome" size={18} color={colors.foreground} />
+                <Text style={[styles.googleBtnText, { color: colors.foreground }]}>Continue with Google</Text>
+              </>
+            )}
           </Pressable>
         </View>
 

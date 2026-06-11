@@ -51,6 +51,7 @@ function TabLayout() {
         options={{
           title: "Home",
           tabBarIcon: ({ color }) => <Feather name="home" size={22} color={color} />,
+          tabBarAccessibilityLabel: "Home tab",
         }}
       />
       <Tabs.Screen
@@ -58,13 +59,15 @@ function TabLayout() {
         options={{
           title: "Courses",
           tabBarIcon: ({ color }) => <Feather name="book-open" size={22} color={color} />,
+          tabBarAccessibilityLabel: "Courses tab",
         }}
       />
       <Tabs.Screen
-        name="store"
+        name="progress"
         options={{
-          title: "Store",
-          tabBarIcon: ({ color }) => <Feather name="shopping-bag" size={22} color={color} />,
+          title: "Progress",
+          tabBarIcon: ({ color }) => <Feather name="trending-up" size={22} color={color} />,
+          tabBarAccessibilityLabel: "Progress tab. Track your learning journey",
         }}
       />
       <Tabs.Screen
@@ -72,6 +75,13 @@ function TabLayout() {
         options={{
           title: "News",
           tabBarIcon: ({ color }) => <Feather name="file-text" size={22} color={color} />,
+          tabBarAccessibilityLabel: "News tab",
+        }}
+      />
+      <Tabs.Screen
+        name="store"
+        options={{
+          href: null,
         }}
       />
       <Tabs.Screen
@@ -79,6 +89,7 @@ function TabLayout() {
         options={{
           title: "Profile",
           tabBarIcon: ({ color }) => <Feather name="user" size={22} color={color} />,
+          tabBarAccessibilityLabel: "Profile tab",
         }}
       />
     </Tabs>

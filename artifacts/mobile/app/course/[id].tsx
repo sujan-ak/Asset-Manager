@@ -1,8 +1,9 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
+  Alert,
   Image,
   Platform,
   Pressable,
@@ -25,6 +26,7 @@ export default function CourseDetailScreen() {
   const { getCourseProgress, enrollCourse } = useProgress();
   const course = COURSES.find((c) => c.id === id);
   const courseProgress = course ? getCourseProgress(course.id) : null;
+  const [isEnrolling, setIsEnrolling] = useState(false);
 
   useEffect(() => {
     if (course?.isPurchased && !courseProgress) {
@@ -53,6 +55,51 @@ export default function CourseDetailScreen() {
     ? ProgressCalculator.getLastAccessedModuleId(courseProgress.modules)
     : null;
   const hasStarted = progress > 0;
+
+  const handleEnrollNow = async () => {
+    if (!course) return;
+    
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsEnrolling(true);
+
+    try {
+      await enrollCourse(course.id);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      Alert.alert(
+        "Enrollment Successful! 🎉",
+        `You've successfully enrolled in "${course.title}". Ready to start learning?`,
+        [
+          {
+            text: "View Course",
+            style: "cancel",
+            onPress: () => {
+              setIsEnrolling(false);
+            },
+          },
+          {
+            text: "Start Learning",
+            onPress: () => {
+              setIsEnrolling(false);
+              router.push({ 
+                pathname: "/course/learn", 
+                params: { courseId: course.id, moduleId: course.modules[0].id } 
+              });
+            },
+          },
+        ]
+      );
+    } catch (error) {
+      console.error('[CourseDetail] Enrollment error:', error);
+      Alert.alert(
+        "Enrollment Failed",
+        "Something went wrong. Please try again.",
+        [{ text: "OK" }]
+      );
+    } finally {
+      setIsEnrolling(false);
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -280,13 +327,15 @@ export default function CourseDetailScreen() {
               )}
             </View>
             <Pressable
-              style={[styles.ctaBtn, { backgroundColor: colors.secondary, flex: 1 }]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: course.modules[0].id } });
-              }}
+              style={[styles.ctaBtn, { backgroundColor: colors.secondary, flex: 1, opacity: isEnrolling ? 0.6 : 1 }]}
+              onPress={handleEnrollNow}
+              disabled={isEnrolling}
             >
-              <Text style={styles.ctaBtnText}>{course.isFree ? "Enroll for Free" : "Enroll Now"}</Text>
+              {isEnrolling ? (
+                <Text style={styles.ctaBtnText}>Enrolling...</Text>
+              ) : (
+                <Text style={styles.ctaBtnText}>{course.isFree ? "Enroll for Free" : "Enroll Now"}</Text>
+              )}
             </Pressable>
           </View>
         )}

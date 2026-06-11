@@ -13,20 +13,34 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/context/AuthContextSupabase";
 
 export default function ForgotPasswordScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { resetPassword } = useAuth();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [error, setError] = useState("");
 
   async function handleReset() {
-    if (!email) return;
+    if (!email) {
+      setError("Please enter your email address.");
+      return;
+    }
+    
+    setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
+    
+    const result = await resetPassword(email);
     setLoading(false);
-    setSent(true);
+    
+    if (result.success) {
+      setSent(true);
+    } else {
+      setError(result.error || "Failed to send reset link. Please try again.");
+    }
   }
 
   return (
@@ -52,6 +66,13 @@ export default function ForgotPasswordScreen() {
           </View>
         ) : (
           <View style={styles.form}>
+            {error ? (
+              <View style={[styles.errorBox, { backgroundColor: "#FEE2E2" }]}>
+                <Feather name="alert-circle" size={14} color="#DC2626" />
+                <Text style={styles.errorText}>{error}</Text>
+              </View>
+            ) : null}
+
             <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Feather name="mail" size={16} color={colors.mutedForeground} />
               <TextInput
@@ -117,6 +138,8 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   successText: { fontSize: 14, color: "#16A34A", flex: 1 },
+  errorBox: { flexDirection: "row", alignItems: "center", gap: 8, padding: 12, borderRadius: 10 },
+  errorText: { fontSize: 13, color: "#DC2626", flex: 1 },
   backToLogin: { alignItems: "center", marginTop: 28 },
   backToLoginText: { fontSize: 15, fontWeight: "600" },
 });

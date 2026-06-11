@@ -14,20 +14,35 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useColors } from "@/hooks/useColors";
 
 export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleGoogleSignup() {
+    setError("");
+    setGoogleLoading(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    
+    const result = await loginWithGoogle();
+    
+    if (!result.success) {
+      setGoogleLoading(false);
+      setError(result.error || "Google sign-up failed. Please try again.");
+    }
+    // Don't set loading to false on success - the OAuth flow will handle redirect
+  }
 
   async function handleRegister() {
     if (!name || !email || !password || !confirm) {
@@ -45,10 +60,17 @@ export default function RegisterScreen() {
     setError("");
     setLoading(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const ok = await register(name, email, password);
+    
+    const result = await register(name, email, password);
     setLoading(false);
-    if (ok) {
-      router.replace("/(tabs)");
+    
+    if (result.success) {
+      // Show success message about email confirmation
+      setError("Success! Please check your email to confirm your account.");
+      // Redirect to login after 2 seconds
+      setTimeout(() => router.replace("/(auth)/login"), 2000);
+    } else {
+      setError(result.error || "Registration failed. Please try again.");
     }
   }
 
@@ -143,9 +165,17 @@ export default function RegisterScreen() {
               styles.googleBtn,
               { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.85 : 1 },
             ]}
-            onPress={handleRegister}
+            onPress={handleGoogleSignup}
+            disabled={googleLoading}
           >
-            <Text style={[styles.googleBtnText, { color: colors.foreground }]}>Continue with Google</Text>
+            {googleLoading ? (
+              <ActivityIndicator size="small" color={colors.foreground} />
+            ) : (
+              <>
+                <Feather name="chrome" size={18} color={colors.foreground} />
+                <Text style={[styles.googleBtnText, { color: colors.foreground }]}>Continue with Google</Text>
+              </>
+            )}
           </Pressable>
         </View>
 

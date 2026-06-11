@@ -15,7 +15,7 @@ import { NewsCard } from "@/components/NewsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { WatchlistCard } from "@/components/WatchlistCard";
 import { LearningStreak } from "@/components/LearningStreak";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useProgress } from "@/context/ProgressContext";
 import { COURSES, NEWS_ITEMS, PRODUCTS } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
