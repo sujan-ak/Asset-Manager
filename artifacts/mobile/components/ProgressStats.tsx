@@ -29,6 +29,32 @@ export function ProgressStats({
     router.push("/(tabs)/courses");
   };
 
+  const allZero = totalCoursesEnrolled === 0 && coursesCompleted === 0 && coursesInProgress === 0 && totalLessonsCompleted === 0;
+
+  if (allZero) {
+    return (
+      <View
+        style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}
+      >
+        <View style={styles.zeroStateContainer}>
+          <View style={[styles.zeroStateIcon, { backgroundColor: colors.muted }]}>
+            <Feather name="bar-chart-2" size={32} color={colors.mutedForeground} />
+          </View>
+          <Text style={[styles.zeroStateTitle, { color: colors.foreground }]}>
+            Start your first lesson to see your progress here
+          </Text>
+          <Pressable
+            style={[styles.zeroStateCTA, { backgroundColor: colors.primary }]}
+            onPress={handleLessonsPress}
+          >
+            <Text style={styles.zeroStateCTAText}>Browse Courses</Text>
+            <Feather name="arrow-right" size={16} color="#FFF" />
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
   const stats = [
     {
       icon: "book-open",
@@ -36,6 +62,7 @@ export function ProgressStats({
       value: totalCoursesEnrolled.toString(),
       color: "#3B82F6",
       helperText: null,
+      isZero: totalCoursesEnrolled === 0,
     },
     {
       icon: "check-circle",
@@ -43,7 +70,8 @@ export function ProgressStats({
       value: coursesCompleted.toString(),
       color: "#10B981",
       helperText:
-        coursesCompleted === 0 ? "Finish your first course to see this grow" : null,
+        coursesCompleted === 0 ? "Finish your first course" : null,
+      isZero: coursesCompleted === 0,
     },
     {
       icon: "play-circle",
@@ -51,7 +79,8 @@ export function ProgressStats({
       value: coursesInProgress.toString(),
       color: "#F59E0B",
       helperText:
-        coursesInProgress === 0 ? "Start a lesson to track your pace" : null,
+        coursesInProgress === 0 ? "Start a lesson" : null,
+      isZero: coursesInProgress === 0,
     },
     {
       icon: "award",
@@ -59,8 +88,9 @@ export function ProgressStats({
       value: totalLessonsCompleted.toString(),
       color: "#8B5CF6",
       helperText:
-        totalLessonsCompleted === 0 ? "Your first lesson is waiting" : null,
+        totalLessonsCompleted === 0 ? "Your first lesson awaits" : null,
       onPress: totalLessonsCompleted === 0 ? handleLessonsPress : undefined,
+      isZero: totalLessonsCompleted === 0,
     },
   ];
 
@@ -93,8 +123,22 @@ export function ProgressStats({
               <View style={[styles.iconBox, { backgroundColor: `${stat.color}15` }]}>
                 <Feather name={stat.icon as any} size={20} color={stat.color} />
               </View>
-              <Text style={[styles.value, { color: colors.foreground }]}>{stat.value}</Text>
-              <Text style={[styles.label, { color: colors.mutedForeground }]}>
+              <Text style={[
+                styles.value, 
+                { 
+                  color: stat.isZero ? colors.mutedForeground : colors.foreground,
+                  fontWeight: stat.isZero ? "600" : "800",
+                }
+              ]}>
+                {stat.value}
+              </Text>
+              <Text style={[
+                styles.label, 
+                { 
+                  color: colors.mutedForeground,
+                  fontWeight: stat.isZero ? "500" : "600",
+                }
+              ]}>
                 {stat.label}
               </Text>
               {stat.helperText && (
@@ -131,6 +175,7 @@ const styles = StyleSheet.create({
     padding: 20,
     flexDirection: "row",
     flexWrap: "wrap",
+    marginHorizontal: 20,
   },
   statItem: {
     width: "48%",
@@ -176,5 +221,40 @@ const styles = StyleSheet.create({
     width: "100%",
     height: 1,
     marginVertical: 4,
+  },
+  zeroStateContainer: {
+    flex: 1,
+    alignItems: "center",
+    paddingVertical: 32,
+    paddingHorizontal: 24,
+  },
+  zeroStateIcon: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 16,
+  },
+  zeroStateTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  zeroStateCTA: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minHeight: 44,
+  },
+  zeroStateCTAText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFF",
   },
 });

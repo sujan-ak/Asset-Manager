@@ -32,21 +32,22 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 12,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   textContainer: {
     flex: 1,
   },
   title: {
-    fontSize: 18,
-    fontWeight: "700",
+    fontSize: 20,
+    fontWeight: "800",
   },
   subtitle: {
     fontSize: 13,
     marginTop: 2,
   },
   seeAll: {
-    fontSize: 13,
-    fontWeight: "600",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });

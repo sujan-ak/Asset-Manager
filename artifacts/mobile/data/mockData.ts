@@ -312,7 +312,7 @@ export const COURSES: Course[] = [
     title: "Python Programming for Students",
     instructor: "Dr. Anjali Verma",
     category: "Programming",
-    thumbnail: require("../assets/images/course_ai.png"),
+    thumbnail: require("../assets/images/course_electronics.png"), // TODO: Create unique python.png image
     duration: "10h 0m",
     lessons: 20,
     rating: 4.6,
@@ -350,7 +350,7 @@ export const COURSES: Course[] = [
     title: "IoT: Internet of Things",
     instructor: "Dr. Arjun Sharma",
     category: "Robotics",
-    thumbnail: require("../assets/images/course_robotics.png"),
+    thumbnail: require("../assets/images/course_electronics.png"), // TODO: Create unique iot.png image
     duration: "18h 0m",
     lessons: 32,
     rating: 4.8,
@@ -392,7 +392,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "Robotics Kits",
     price: 2999,
     originalPrice: 3999,
-    thumbnail: require("../assets/images/course_robotics.png"),
+    thumbnail: require("../assets/images/product_kit_1.png"),
     description:
       "Complete Arduino-based robotics kit for students. Includes chassis, motors, sensors, wiring, and a step-by-step guide booklet.",
     rating: 4.8,
@@ -408,7 +408,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "AI Kits",
     price: 5999,
     originalPrice: 7499,
-    thumbnail: require("../assets/images/course_ai.png"),
+    thumbnail: require("../assets/images/product_kit_2.png"),
     description:
       "Raspberry Pi 4-based kit for hands-on AI and machine learning experiments. Comes with camera module, sensors, and pre-loaded AI projects.",
     rating: 4.9,
@@ -424,7 +424,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "Electronics Kits",
     price: 1499,
     originalPrice: 1999,
-    thumbnail: require("../assets/images/course_electronics.png"),
+    thumbnail: require("../assets/images/product_kit_3.png"),
     description:
       "Essential electronics kit with resistors, capacitors, LEDs, transistors, and a breadboard. Perfect for hands-on circuit learning.",
     rating: 4.6,
@@ -440,7 +440,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "Notes",
     price: 299,
     originalPrice: 499,
-    thumbnail: require("../assets/images/course_robotics.png"),
+    thumbnail: require("../assets/images/product_notes_1.png"),
     description:
       "50+ pages of handcrafted notes covering robotics fundamentals, Arduino programming, and sensor integration. Perfect exam prep.",
     rating: 4.7,
@@ -456,7 +456,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "Question Banks",
     price: 399,
     originalPrice: 599,
-    thumbnail: require("../assets/images/course_ai.png"),
+    thumbnail: require("../assets/images/product_notes_2.png"),
     description:
       "500+ carefully curated practice questions on AI and machine learning concepts. Includes topic-wise questions and full mock tests.",
     rating: 4.8,
@@ -472,7 +472,7 @@ export const PRODUCTS: Product[] = [
     subcategory: "Premium Resources",
     price: 549,
     originalPrice: 799,
-    thumbnail: require("../assets/images/course_electronics.png"),
+    thumbnail: require("../assets/images/product_notes_3.png"),
     description:
       "Complete premium study pack including notes, question banks, cheat sheets, and lab manual for electronics students.",
     rating: 4.9,
@@ -493,7 +493,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     author: "Education Desk",
     date: "Jun 6, 2026",
     readTime: "4 min read",
-    thumbnail: require("../assets/images/course_ai.png"),
+    thumbnail: require("../assets/images/news_1.png"),
     tags: ["AI", "Education Policy", "India"],
   },
   {
@@ -505,7 +505,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     author: "Priya Menon",
     date: "Jun 5, 2026",
     readTime: "6 min read",
-    thumbnail: require("../assets/images/course_robotics.png"),
+    thumbnail: require("../assets/images/news_2.png"),
     tags: ["Robotics", "Competitions", "Scholarships"],
   },
   {
@@ -517,7 +517,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     author: "Dr. Ananya Kapoor",
     date: "Jun 4, 2026",
     readTime: "5 min read",
-    thumbnail: require("../assets/images/course_electronics.png"),
+    thumbnail: require("../assets/images/news_3.png"),
     tags: ["Research", "STEM", "Learning"],
   },
   {
@@ -529,7 +529,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     author: "Education Desk",
     date: "Jun 3, 2026",
     readTime: "3 min read",
-    thumbnail: require("../assets/images/course_ai.png"),
+    thumbnail: require("../assets/images/news_4.png"),
     tags: ["CBSE", "Curriculum", "AI Education"],
   },
   {
@@ -541,7 +541,7 @@ export const NEWS_ITEMS: NewsItem[] = [
     author: "Kerala Correspondent",
     date: "Jun 2, 2026",
     readTime: "4 min read",
-    thumbnail: require("../assets/images/course_robotics.png"),
+    thumbnail: require("../assets/images/news_5.png"),
     tags: ["Student Achievement", "AI", "Award"],
   },
 ];

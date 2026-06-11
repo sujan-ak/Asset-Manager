@@ -203,7 +203,7 @@ export default function LearnScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20 }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         {activeTab === "overview" ? (

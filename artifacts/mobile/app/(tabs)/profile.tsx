@@ -13,7 +13,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContextSupabase";
-import { COURSES } from "@/data/mockData";
+import { useProgress } from "@/context/ProgressContext";
 import { useColors } from "@/hooks/useColors";
 
 interface MenuItem {
@@ -27,13 +27,14 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user, logout } = useAuth();
+  const { courseProgress } = useProgress();
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const purchasedCourses = COURSES.filter((c) => c.isPurchased);
+  const enrolledCourses = Array.from(courseProgress.values());
   const avgProgress =
-    purchasedCourses.length > 0
-      ? Math.round(purchasedCourses.reduce((s, c) => s + c.progress, 0) / purchasedCourses.length)
+    enrolledCourses.length > 0
+      ? Math.round(enrolledCourses.reduce((s, c) => s + c.progress, 0) / enrolledCourses.length)
       : 0;
 
   function handleLogout() {
@@ -58,7 +59,18 @@ export default function ProfileScreen() {
         { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
         { icon: "shopping-bag", label: "Store", onPress: () => router.push("/(tabs)/store") },
         { icon: "shopping-cart", label: "My Orders", onPress: () => router.push("/store/orders") },
-        { icon: "award", label: "Achievements", onPress: () => {} },
+        { 
+          icon: "award", 
+          label: "Achievements", 
+          onPress: async () => {
+            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            Alert.alert(
+              "Achievements 🏆",
+              "Your achievements will be displayed here. Complete more courses and lessons to unlock badges and certificates!",
+              [{ text: "OK" }]
+            );
+          }
+        },
       ],
     },
     {
@@ -88,7 +100,7 @@ export default function ProfileScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 90 }}
+      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
       showsVerticalScrollIndicator={false}
     >
       <Text style={[styles.pageTitle, { color: colors.foreground }]}>Profile</Text>
@@ -115,13 +127,22 @@ export default function ProfileScreen() {
       {/* Stats */}
       <View style={[styles.statsRow, { backgroundColor: colors.card, borderColor: colors.border }]}>
         <View style={styles.stat}>
-          <Text style={[styles.statNum, { color: colors.foreground }]}>{purchasedCourses.length}</Text>
+          <Text style={[styles.statNum, { color: colors.foreground }]}>{enrolledCourses.length}</Text>
           <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Enrolled</Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.stat}>
-          <Text style={[styles.statNum, { color: colors.foreground }]}>{avgProgress}%</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Avg Progress</Text>
+          {avgProgress === 0 ? (
+            <>
+              <Text style={[styles.statNum, { color: colors.foreground }]}>-</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Start Now</Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.statNum, { color: colors.foreground }]}>{avgProgress}%</Text>
+              <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Avg Progress</Text>
+            </>
+          )}
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.stat}>

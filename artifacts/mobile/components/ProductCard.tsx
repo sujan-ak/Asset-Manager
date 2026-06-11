@@ -1,22 +1,50 @@
 import { Feather } from "@expo/vector-icons";
+import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import React, { useState } from "react";
+import { Image, Pressable, StyleSheet, Text, View, Alert, Platform } from "react-native";
 import { Product } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useCart } from "@/context/CartContext";
 
 interface ProductCardProps {
   product: Product;
+  onAddedToCart?: () => void;
+  gridMode?: boolean;
 }
 
-export function ProductCard({ product }: ProductCardProps) {
+export function ProductCard({ product, onAddedToCart, gridMode = false }: ProductCardProps) {
   const colors = useColors();
+  const { addToCart } = useCart();
+  const [isAdding, setIsAdding] = useState(false);
   const discount = Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100);
+
+  const handleAddToCart = async (e: any) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (isAdding) return;
+    
+    setIsAdding(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    addToCart(product);
+    
+    if (onAddedToCart) {
+      onAddedToCart();
+    }
+    
+    if (Platform.OS !== "web") {
+      Alert.alert("Added to cart", `${product.title} has been added to your cart`);
+    }
+    
+    setTimeout(() => setIsAdding(false), 500);
+  };
 
   return (
     <Pressable
       style={({ pressed }) => [
         styles.card,
+        gridMode && styles.gridCard,
         { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
       ]}
       onPress={() => router.push({ pathname: "/store/[id]", params: { id: product.id } })}
@@ -52,12 +80,26 @@ export function ProductCard({ product }: ProductCardProps) {
           <Text style={[styles.reviews, { color: colors.mutedForeground }]}> ({product.reviews})</Text>
         </View>
         <View style={styles.priceRow}>
-          <Text style={[styles.price, { color: colors.primary }]}>₹{product.price}</Text>
-          <Text style={[styles.originalPrice, { color: colors.mutedForeground }]}>₹{product.originalPrice}</Text>
+          <View style={styles.priceGroup}>
+            <Text style={[styles.price, { color: colors.primary }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              ₹{product.price}
+            </Text>
+            <Text style={[styles.originalPrice, { color: colors.mutedForeground }]} numberOfLines={1}>
+              ₹{product.originalPrice}
+            </Text>
+          </View>
+          <Pressable
+            style={[styles.addToCartBtn, { backgroundColor: colors.secondary }]}
+            onPress={handleAddToCart}
+          >
+            <Feather name="shopping-cart" size={16} color="#FFF" />
+          </Pressable>
+        </View>
+        {discount > 0 && (
           <View style={[styles.discountBadge, { backgroundColor: "#DCFCE7" }]}>
             <Text style={[styles.discountText, { color: "#16A34A" }]}>{discount}% off</Text>
           </View>
-        </View>
+        )}
       </View>
     </Pressable>
   );
@@ -65,11 +107,22 @@ export function ProductCard({ product }: ProductCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    width: 180,
-    borderRadius: 14,
+    width: "100%",
+    minWidth: 170,
+    maxWidth: 200,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  gridCard: {
+    marginRight: 0,
+    width: "100%",
   },
   imageContainer: {
     position: "relative",
@@ -103,19 +156,22 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   content: {
-    padding: 10,
-    gap: 3,
+    padding: 12,
+    gap: 4,
   },
   subcategory: {
     fontSize: 10,
     fontWeight: "600",
     textTransform: "uppercase",
     letterSpacing: 0.5,
+    flexShrink: 1,
   },
   title: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
-    lineHeight: 18,
+    lineHeight: 19,
+    minHeight: 38,
+    flexShrink: 1,
   },
   ratingRow: {
     flexDirection: "row",
@@ -130,24 +186,45 @@ const styles = StyleSheet.create({
   priceRow: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+    gap: 8,
+  },
+  priceGroup: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
     gap: 6,
-    marginTop: 2,
+    flexWrap: "wrap",
   },
   price: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 15,
+    fontWeight: "800",
+    flexShrink: 0,
+    maxWidth: 80,
   },
   originalPrice: {
     fontSize: 11,
     textDecorationLine: "line-through",
+    flexShrink: 1,
   },
   discountBadge: {
-    paddingHorizontal: 5,
+    alignSelf: "flex-start",
+    paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 4,
+    marginTop: 4,
   },
   discountText: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: "600",
+  },
+  addToCartBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    flexShrink: 0,
   },
 });

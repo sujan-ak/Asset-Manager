@@ -28,7 +28,10 @@ export function CourseProgressCard({ course }: CourseProgressCardProps) {
   };
 
   const handleContinue = async (e: any) => {
-    e.stopPropagation();
+    if (e) {
+      e.preventDefault();
+      e.stopPropagation();
+    }
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     router.push(`/course/${course.courseId}`);
   };
@@ -96,79 +99,57 @@ export function CourseProgressCard({ course }: CourseProgressCardProps) {
       </View>
 
       {/* Progress Bar Section */}
-      <View style={styles.progressSection}>
-        <View style={styles.progressHeader}>
-          <Text
-            style={[styles.progressText, { color: colors.primary }]}
-            accessible={true}
-            accessibilityRole="text"
-            accessibilityLabel={`Progress: ${course.progress} percent`}
-          >
-            {course.progress}%
-          </Text>
-          <Text style={[styles.lessonsText, { color: colors.mutedForeground }]}>
-            {course.completedModules} of {course.totalModules} lessons
-          </Text>
+      {course.progress > 0 && (
+        <View style={styles.progressSection}>
+          <View style={styles.progressHeader}>
+            <Text style={[styles.progressText, { color: colors.primary }]}>
+              {course.progress}%
+            </Text>
+            <Text style={[styles.lessonsText, { color: colors.mutedForeground }]}>
+              {course.completedModules} of {course.totalModules} lessons
+            </Text>
+          </View>
+          <View style={[styles.progressBarBg, { backgroundColor: colors.muted }]}>
+            <Animated.View
+              style={[
+                styles.progressBarFill,
+                {
+                  width: progressWidth,
+                  backgroundColor: colors.primary,
+                  minWidth: 8,
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View
-          style={[styles.progressBarBg, { backgroundColor: colors.muted }]}
-          accessible={true}
-          accessibilityRole="progressbar"
-          accessibilityValue={{
-            min: 0,
-            max: 100,
-            now: course.progress,
-            text: `${course.progress}% complete`,
-          }}
-        >
-          <Animated.View
-            style={[
-              styles.progressBarFill,
-              {
-                width: progressWidth,
-                backgroundColor: colors.primary,
-                minWidth: course.progress > 0 ? 8 : 0,
-              },
-            ]}
-          />
-        </View>
-      </View>
+      )}
 
       {/* Footer with Status Badge and CTA */}
       <View style={styles.footer}>
-        <View style={styles.footerLeft}>
+        {course.progress === 0 ? (
           <Pressable
-            style={[styles.statusBadge, { backgroundColor: status.bgColor }]}
-            onPress={course.progress < 100 ? handleContinue : undefined}
-            accessible={true}
-            accessibilityRole="button"
-            accessibilityLabel={`Status: ${status.label}`}
-            accessibilityHint={course.progress < 100 ? "Double tap to continue course" : undefined}
+            style={[styles.startNowBtn, { backgroundColor: colors.secondary }]}
+            onPress={handleContinue}
           >
-            <Feather name={status.icon as any} size={12} color={status.color} />
-            <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+            <Feather name="play" size={16} color="#FFF" />
+            <Text style={styles.startNowText}>Start Now</Text>
           </Pressable>
-          <View style={styles.timeInfo}>
-            <Feather name="clock" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.timeText, { color: colors.mutedForeground }]}>
-              {formatLastAccessed(course.lastAccessedAt)}
-            </Text>
+        ) : (
+          <View style={styles.footerLeft}>
+            <View style={[styles.statusBadge, { backgroundColor: status.bgColor }]}>
+              <Feather name={status.icon as any} size={12} color={status.color} />
+              <Text style={[styles.statusText, { color: status.color }]}>{status.label}</Text>
+            </View>
+            {course.lastAccessedAt && (
+              <View style={styles.timeInfo}>
+                <Feather name="clock" size={12} color={colors.mutedForeground} />
+                <Text style={[styles.timeText, { color: colors.mutedForeground }]}>
+                  Last visited {formatLastAccessed(course.lastAccessedAt)}
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
-        <Pressable
-          style={({ pressed }) => [
-            styles.ctaButton,
-            { backgroundColor: colors.primary, opacity: pressed ? 0.8 : 1 },
-          ]}
-          onPress={handleContinue}
-          accessible={true}
-          accessibilityRole="button"
-          accessibilityLabel={status.ctaLabel}
-          accessibilityHint="Double tap to continue learning"
-        >
-          <Text style={styles.ctaText}>{status.ctaLabel}</Text>
-          <Feather name="arrow-right" size={14} color="#FFF" />
-        </Pressable>
+        )}
       </View>
     </Pressable>
   );
@@ -293,6 +274,21 @@ const styles = StyleSheet.create({
   },
   ctaText: {
     fontSize: 14,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  startNowBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    paddingVertical: 14,
+    borderRadius: 12,
+    minHeight: 48,
+  },
+  startNowText: {
+    fontSize: 15,
     fontWeight: "700",
     color: "#FFF",
   },

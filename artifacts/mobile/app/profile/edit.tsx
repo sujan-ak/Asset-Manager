@@ -61,7 +61,7 @@ export default function EditProfileScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 24, gap: 16 }}
+          contentContainerStyle={{ padding: 24, gap: 16, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

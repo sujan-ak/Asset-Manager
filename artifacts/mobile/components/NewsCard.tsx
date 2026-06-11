@@ -96,10 +96,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 18,
+    flexShrink: 1,
   },
   summary: {
     fontSize: 12,
     lineHeight: 16,
+    flexShrink: 1,
   },
   meta: {
     fontSize: 11,
@@ -109,10 +111,15 @@ const styles = StyleSheet.create({
   featuredCard: {
     borderRadius: 16,
     overflow: "hidden",
-    marginRight: 12,
-    width: 300,
+    marginRight: 16,
+    width: 316,
     height: 200,
     borderWidth: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
   },
   featuredImage: {
     width: "100%",
@@ -143,6 +150,7 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     color: "#FFFFFF",
     lineHeight: 20,
+    flexShrink: 1,
   },
   featuredMeta: {
     fontSize: 11,

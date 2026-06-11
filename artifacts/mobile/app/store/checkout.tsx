@@ -73,7 +73,7 @@ export default function CheckoutScreen() {
         </View>
 
         <ScrollView
-          contentContainerStyle={{ padding: 20, paddingBottom: 120 }}
+          contentContainerStyle={{ padding: 20, paddingBottom: Platform.OS === "web" ? 120 : insets.bottom + 140 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >

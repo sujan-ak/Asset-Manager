@@ -23,7 +23,7 @@ export default function SecurityScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20 }}
+        contentContainerStyle={{ padding: 20, gap: 20, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>

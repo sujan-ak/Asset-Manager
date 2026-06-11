@@ -30,7 +30,7 @@ export default function HelpScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20 }}
+        contentContainerStyle={{ padding: 20, gap: 16, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Contact options */}

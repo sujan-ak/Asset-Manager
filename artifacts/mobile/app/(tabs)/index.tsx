@@ -46,7 +46,7 @@ export default function HomeScreen() {
   return (
     <ScrollView
       style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 80 }}
+      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
       showsVerticalScrollIndicator={false}
     >
       {/* Header */}
@@ -57,7 +57,7 @@ export default function HomeScreen() {
         </View>
         <Pressable
           style={[styles.notifBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => {}}
+          onPress={() => router.push("/settings/notifications")}
         >
           <Feather name="bell" size={20} color={colors.foreground} />
           <View style={[styles.notifDot, { backgroundColor: colors.secondary }]} />
@@ -66,20 +66,48 @@ export default function HomeScreen() {
 
       {/* Stats Banner */}
       <View style={[styles.statsBanner, { backgroundColor: colors.primary }]}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{enrolledCourses.length}</Text>
-          <Text style={styles.statLabel}>Courses Enrolled</Text>
-        </View>
-        <View style={[styles.statDivider]} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{completedCount}</Text>
-          <Text style={styles.statLabel}>Courses Completed</Text>
-        </View>
-        <View style={styles.statDivider} />
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{avgProgress}%</Text>
-          <Text style={styles.statLabel}>Average Progress</Text>
-        </View>
+        {enrolledCourses.length === 0 ? (
+          <View style={styles.emptyStateContainer}>
+            <Text style={styles.emptyStateIcon}>🚀</Text>
+            <Text style={styles.emptyStateTitle}>Start your first course today!</Text>
+            <Text style={styles.emptyStateSubtitle}>Explore courses and begin your learning journey</Text>
+          </View>
+        ) : (
+          <>
+            <View style={styles.statItem}>
+              <Text style={styles.statNumber}>{enrolledCourses.length}</Text>
+              <Text style={styles.statLabel}>Courses Enrolled</Text>
+            </View>
+            <View style={[styles.statDivider]} />
+            <View style={styles.statItem}>
+              {completedCount === 0 ? (
+                <>
+                  <Text style={styles.statNumber}>🎯</Text>
+                  <Text style={styles.statLabel}>Complete Your First</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.statNumber}>{completedCount}</Text>
+                  <Text style={styles.statLabel}>Courses Completed</Text>
+                </>
+              )}
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              {avgProgress === 0 ? (
+                <>
+                  <Text style={styles.statNumber}>💪</Text>
+                  <Text style={styles.statLabel}>Begin Progress</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={styles.statNumber}>{avgProgress}%</Text>
+                  <Text style={styles.statLabel}>Average Progress</Text>
+                </>
+              )}
+            </View>
+          </>
+        )}
       </View>
 
       {/* Learning Streak */}
@@ -97,7 +125,11 @@ export default function HomeScreen() {
             subtitle={`${watchlist.length} lesson${watchlist.length > 1 ? 's' : ''} in progress`}
             onSeeAll={() => router.push("/(tabs)/courses")} 
           />
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.carouselContent}
+          >
             {watchlist.map((item) => (
               <WatchlistCard key={`${item.courseId}-${item.moduleId}`} item={item} />
             ))}
@@ -108,17 +140,36 @@ export default function HomeScreen() {
       {/* Featured Courses */}
       <View style={styles.section}>
         <SectionHeader title="Featured Courses" onSeeAll={() => router.push("/(tabs)/courses")} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-          {COURSES.map((course) => (
-            <CourseCard key={course.id} course={course} />
-          ))}
-        </ScrollView>
+        <View style={styles.carouselWrapper}>
+          <ScrollView 
+            horizontal 
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.featuredCoursesContent}
+            snapToInterval={276}
+            decelerationRate="fast"
+          >
+            {COURSES.map((course) => (
+              <CourseCard key={course.id} course={course} />
+            ))}
+          </ScrollView>
+          {Platform.OS === 'web' && (
+            <View style={[styles.fadeGradient, { 
+              background: `linear-gradient(to right, transparent 0%, ${colors.background} 100%)` 
+            }]} pointerEvents="none" />
+          )}
+        </View>
       </View>
 
       {/* Featured Products */}
       <View style={styles.section}>
         <SectionHeader title="Shop & Learn" onSeeAll={() => router.push("/(tabs)/store")} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={200}
+          decelerationRate="fast"
+        >
           {PRODUCTS.map((p) => (
             <ProductCard key={p.id} product={p} />
           ))}
@@ -128,7 +179,13 @@ export default function HomeScreen() {
       {/* Latest News */}
       <View style={styles.section}>
         <SectionHeader title="Latest News" onSeeAll={() => router.push("/(tabs)/news")} />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={316}
+          decelerationRate="fast"
+        >
           {NEWS_ITEMS.slice(0, 3).map((item) => (
             <NewsCard key={item.id} item={item} featured />
           ))}
@@ -183,6 +240,21 @@ const styles = StyleSheet.create({
   statNumber: { fontSize: 26, fontWeight: "800", color: "#FFF", marginBottom: 2 },
   statLabel: { fontSize: 11, fontWeight: "600", color: "rgba(255,255,255,0.85)", marginTop: 4, textAlign: "center" },
   statDivider: { width: 1, backgroundColor: "rgba(255,255,255,0.2)" },
+  emptyStateContainer: { flex: 1, alignItems: "center", paddingHorizontal: 20, paddingVertical: 8 },
+  emptyStateIcon: { fontSize: 32, marginBottom: 8 },
+  emptyStateTitle: { fontSize: 17, fontWeight: "800", color: "#FFF", textAlign: "center", marginBottom: 4 },
+  emptyStateSubtitle: { fontSize: 13, fontWeight: "500", color: "rgba(255,255,255,0.85)", textAlign: "center" },
   streakSection: { marginHorizontal: 20, marginBottom: 28 },
-  section: { marginBottom: 28, paddingHorizontal: 20 },
+  section: { marginBottom: 32 },
+  carouselWrapper: { position: "relative" },
+  carouselContent: { paddingLeft: 20, paddingRight: 180 },
+  featuredCoursesContent: { paddingLeft: 20, paddingRight: 100 },
+  fadeGradient: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: 120,
+    pointerEvents: "none",
+  },
 });

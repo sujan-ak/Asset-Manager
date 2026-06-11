@@ -8,6 +8,8 @@ import {
   StyleSheet,
   Text,
   View,
+  FlatList,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProductCard } from "@/components/ProductCard";
@@ -38,6 +40,20 @@ export default function StoreScreen() {
     return matchSearch && matchCat;
   });
 
+  const handleAddedToCart = () => {
+    if (Platform.OS === "web") {
+      Alert.alert("Added to cart", "Item has been added to your cart");
+    }
+  };
+
+  const handleCartPress = () => {
+    router.push("/store/checkout");
+  };
+
+  const handleClearSearch = () => {
+    setSearch("");
+  };
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad + 12 }]}>
@@ -45,7 +61,7 @@ export default function StoreScreen() {
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Store</Text>
           <Pressable
             style={[styles.cartBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => router.push("/store/orders")}
+            onPress={handleCartPress}
           >
             <Feather name="shopping-bag" size={20} color={colors.foreground} />
             {count > 0 && (
@@ -78,28 +94,60 @@ export default function StoreScreen() {
       </View>
 
       <ScrollView
-        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 90 }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
         {search || activeCategory !== "All" ? (
-          <View style={styles.section}>
-            <Text style={[styles.count, { color: colors.mutedForeground }]}>{filtered.length} products found</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-              {filtered.map((p) => <ProductCard key={p.id} product={p} />)}
-            </ScrollView>
-          </View>
+          filtered.length === 0 ? (
+            <View style={styles.emptyState}>
+              <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+                <Feather name="search" size={40} color={colors.mutedForeground} />
+              </View>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No products found</Text>
+              <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+                Try adjusting your search or filters
+              </Text>
+              {search && (
+                <Pressable
+                  style={[styles.clearBtn, { backgroundColor: colors.primary }]}
+                  onPress={handleClearSearch}
+                >
+                  <Text style={styles.clearBtnText}>Clear Search</Text>
+                </Pressable>
+              )}
+            </View>
+          ) : (
+            <View style={styles.section}>
+              <Text style={[styles.count, { color: colors.mutedForeground }]}>{filtered.length} products found</Text>
+              <View style={styles.gridContainer}>
+                {filtered.map((p) => (
+                  <View key={p.id} style={styles.gridItem}>
+                    <ProductCard product={p} onAddedToCart={handleAddedToCart} gridMode />
+                  </View>
+                ))}
+              </View>
+            </View>
+          )
         ) : (
           <>
             <View style={styles.section}>
               <SectionHeader title="Physical Kits" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {physicalProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContent}
+              >
+                {physicalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
               </ScrollView>
             </View>
             <View style={styles.section}>
               <SectionHeader title="Digital Resources" />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {digitalProducts.map((p) => <ProductCard key={p.id} product={p} />)}
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContent}
+              >
+                {digitalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
               </ScrollView>
             </View>
           </>
@@ -142,6 +190,53 @@ const styles = StyleSheet.create({
   categories: { paddingHorizontal: 20, gap: 8, paddingTop: 12 },
   chip: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   chipText: { fontSize: 13, fontWeight: "600" },
-  section: { paddingHorizontal: 20, paddingTop: 20 },
-  count: { fontSize: 13, marginBottom: 12 },
+  section: { paddingTop: 20, marginBottom: 24 },
+  count: { fontSize: 13, marginBottom: 12, paddingHorizontal: 20 },
+  carouselContent: { paddingLeft: 20, paddingRight: 20 },
+  gridContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    paddingHorizontal: 16,
+    justifyContent: "space-between",
+  },
+  gridItem: {
+    width: "48%",
+    marginBottom: 16,
+  },
+  emptyState: {
+    alignItems: "center",
+    paddingHorizontal: 40,
+    paddingTop: 80,
+  },
+  emptyIcon: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  clearBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minHeight: 44,
+  },
+  clearBtnText: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#FFF",
+  },
 });

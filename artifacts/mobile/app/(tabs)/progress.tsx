@@ -46,7 +46,7 @@ export default function ProgressScreen() {
       style={[styles.container, { backgroundColor: colors.background }]}
       contentContainerStyle={{
         paddingTop: topPad + 16,
-        paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 80,
+        paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100,
       }}
       showsVerticalScrollIndicator={false}
     >
@@ -67,7 +67,7 @@ export default function ProgressScreen() {
             <Feather name="trending-up" size={48} color={colors.mutedForeground} />
           </View>
           <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
-            Start Your Learning Journey
+            Your Learning Journey Starts Here! 🚀
           </Text>
           <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
             Enroll in courses to track your progress and achieve your learning goals
@@ -95,19 +95,39 @@ export default function ProgressScreen() {
           </View>
 
           {/* Learning Streak Card */}
-          {stats.learningStreak > 0 && (
+          {stats.totalLessonsCompleted === 0 ? (
+            <View style={styles.section}>
+              <View
+                style={[
+                  styles.streakCard,
+                  { backgroundColor: colors.muted, borderColor: colors.border },
+                ]}
+              >
+                <View style={styles.streakHeader}>
+                  <View style={[styles.streakIcon, { backgroundColor: colors.card }]}>
+                    <Feather name="target" size={24} color={colors.mutedForeground} />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.streakTitle, { color: colors.foreground }]}>
+                      Complete your first lesson to start a streak!
+                    </Text>
+                    <Text style={[styles.streakSubtitle, { color: colors.mutedForeground }]}>
+                      Build momentum by learning every day
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+          ) : stats.learningStreak > 0 ? (
             <View style={styles.section}>
               <View
                 style={[
                   styles.streakCard,
                   { backgroundColor: colors.primary, borderColor: colors.primary },
                 ]}
-                accessible={true}
-                accessibilityRole="text"
-                accessibilityLabel={`Learning streak: ${stats.learningStreak} days. Keep it up! You're on a roll`}
               >
                 <View style={styles.streakHeader}>
-                  <View style={styles.streakIcon} accessible={false}>
+                  <View style={styles.streakIcon}>
                     <Feather name="zap" size={24} color="#FFF" />
                   </View>
                   <View style={{ flex: 1 }}>
@@ -121,7 +141,7 @@ export default function ProgressScreen() {
                 </View>
               </View>
             </View>
-          )}
+          ) : null}
 
           {/* Weekly Activity */}
           <View style={styles.section}>
@@ -139,10 +159,10 @@ export default function ProgressScreen() {
                   <Feather name="bar-chart-2" size={32} color={colors.mutedForeground} />
                 </View>
                 <Text style={[styles.emptyActivityTitle, { color: colors.foreground }]}>
-                  No activity yet this week
+                  Complete a lesson to begin tracking 📈
                 </Text>
                 <Text style={[styles.emptyActivityText, { color: colors.mutedForeground }]}>
-                  Complete a lesson to see your learning statistics
+                  Start your first lesson to see your learning statistics here
                 </Text>
                 <Pressable
                   style={[styles.emptyActivityBtn, { backgroundColor: colors.primary }]}
@@ -169,22 +189,16 @@ export default function ProgressScreen() {
                   styles.activityCard,
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
-                accessible={true}
-                accessibilityRole="summary"
-                accessibilityLabel={`Weekly activity chart. ${stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} minutes of learning this week`}
               >
-                <View style={styles.activityChart}>
+                <View style={styles.activityChart} pointerEvents="none">
                   {stats.weeklyActivity.map((day, index) => {
                     const height = maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0;
                     const hasActivity = day.minutes > 0;
 
                     return (
                       <View
-                        key={index}
+                        key={`week-${index}-${day.day}`}
                         style={styles.activityBarContainer}
-                        accessible={true}
-                        accessibilityRole="text"
-                        accessibilityLabel={`${day.day}: ${day.minutes} minutes, ${day.lessonsCompleted} lessons completed`}
                       >
                         <View style={styles.activityBarWrapper}>
                           <View
@@ -235,7 +249,11 @@ export default function ProgressScreen() {
                 title="Continue Learning"
                 subtitle={`${watchlist.length} lesson${watchlist.length > 1 ? "s" : ""} in progress`}
               />
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <ScrollView 
+                horizontal 
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.carouselContent}
+              >
                 {watchlist.map((item) => (
                   <WatchlistCard key={`${item.courseId}-${item.moduleId}`} item={item} />
                 ))}
@@ -331,8 +349,9 @@ const styles = StyleSheet.create({
   },
   pageTitle: { fontSize: 28, fontWeight: "800", marginBottom: 4 },
   subtitle: { fontSize: 14 },
-  section: { paddingHorizontal: 20, marginBottom: 28 },
-  sectionTitle: { fontSize: 18, fontWeight: "800", marginBottom: 12 },
+  section: { marginBottom: 32 },
+  sectionTitle: { fontSize: 20, fontWeight: "800", marginBottom: 12, paddingHorizontal: 20 },
+  carouselContent: { paddingLeft: 20, paddingRight: 4 },
 
   // Empty State
   emptyState: {
@@ -380,6 +399,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 2,
     padding: 20,
+    marginHorizontal: 20,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -416,6 +436,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     padding: 32,
     alignItems: "center",
+    marginHorizontal: 20,
   },
   emptyActivityIcon: {
     width: 80,
@@ -457,28 +478,35 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     borderWidth: 1,
     padding: 20,
+    marginHorizontal: 20,
+    overflow: "hidden",
   },
   activityChart: {
     flexDirection: "row",
     justifyContent: "space-between",
     height: 140,
     marginBottom: 20,
+    position: "relative",
+    zIndex: 1,
   },
   activityBarContainer: {
     flex: 1,
     alignItems: "center",
     gap: 8,
+    position: "relative",
   },
   activityBarWrapper: {
     flex: 1,
     width: "100%",
     justifyContent: "flex-end",
     alignItems: "center",
+    position: "relative",
   },
   activityBar: {
     width: "60%",
     borderRadius: 4,
     minHeight: 4,
+    position: "relative",
   },
   activityDay: {
     fontSize: 11,
@@ -504,6 +532,7 @@ const styles = StyleSheet.create({
   // Recently Completed
   completedList: {
     gap: 10,
+    paddingHorizontal: 20,
   },
   completedItem: {
     flexDirection: "row",
@@ -542,5 +571,6 @@ const styles = StyleSheet.create({
   // Courses List
   coursesList: {
     gap: 12,
+    paddingHorizontal: 20,
   },
 });

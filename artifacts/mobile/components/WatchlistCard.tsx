@@ -70,11 +70,16 @@ export function WatchlistCard({ item }: WatchlistCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    width: 240,
-    borderRadius: 14,
+    width: 260,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   thumbnail: {
     width: "100%",
@@ -82,7 +87,7 @@ const styles = StyleSheet.create({
     resizeMode: "cover",
   },
   content: {
-    padding: 12,
+    padding: 14,
     gap: 6,
   },
   badge: {

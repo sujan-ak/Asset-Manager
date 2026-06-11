@@ -4,6 +4,7 @@ import React from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Course } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useProgress } from "@/context/ProgressContext";
 
 interface CourseCardProps {
   course: Course;
@@ -12,6 +13,10 @@ interface CourseCardProps {
 
 export function CourseCard({ course, horizontal = false }: CourseCardProps) {
   const colors = useColors();
+  const { getCourseProgress } = useProgress();
+  const courseProgress = getCourseProgress(course.id);
+  const isEnrolled = !!courseProgress;
+  const progress = courseProgress?.progress || 0;
 
   if (horizontal) {
     return (
@@ -38,17 +43,17 @@ export function CourseCard({ course, horizontal = false }: CourseCardProps) {
             <Feather name="book" size={12} color={colors.mutedForeground} />
             <Text style={[styles.metaText, { color: colors.mutedForeground }]}> {course.lessons} lessons</Text>
           </View>
-          {course.isPurchased && course.progress > 0 && (
+          {isEnrolled && progress > 0 && (
             <View style={styles.progressContainer}>
               <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
                 <View
                   style={[
                     styles.progressFill,
-                    { width: `${course.progress}%` as any, backgroundColor: colors.primary },
+                    { width: `${progress}%` as any, backgroundColor: colors.primary },
                   ]}
                 />
               </View>
-              <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{course.progress}%</Text>
+              <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{progress}%</Text>
             </View>
           )}
         </View>
@@ -91,17 +96,17 @@ export function CourseCard({ course, horizontal = false }: CourseCardProps) {
             <Text style={[styles.priceText, { color: colors.foreground }]}>₹{course.price}</Text>
           )}
         </View>
-        {course.isPurchased && course.progress > 0 && (
+        {isEnrolled && progress > 0 && (
           <View style={styles.progressContainer}>
             <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
               <View
                 style={[
                   styles.progressFill,
-                  { width: `${course.progress}%` as any, backgroundColor: colors.primary },
+                  { width: `${progress}%` as any, backgroundColor: colors.primary },
                 ]}
               />
             </View>
-            <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{course.progress}%</Text>
+            <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{progress}%</Text>
           </View>
         )}
       </View>
@@ -111,20 +116,25 @@ export function CourseCard({ course, horizontal = false }: CourseCardProps) {
 
 const styles = StyleSheet.create({
   card: {
-    width: 200,
-    borderRadius: 14,
+    width: 260,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
-    marginRight: 12,
+    marginRight: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 3,
   },
   thumbnail: {
     width: "100%",
-    height: 110,
+    height: 140,
     resizeMode: "cover",
   },
   cardContent: {
-    padding: 12,
-    gap: 4,
+    padding: 16,
+    gap: 6,
   },
   categoryBadge: {
     alignSelf: "flex-start",
@@ -138,18 +148,21 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   title: {
-    fontSize: 13,
+    fontSize: 15,
     fontWeight: "700",
-    lineHeight: 18,
+    lineHeight: 20,
+    minHeight: 40,
+    flexShrink: 1,
   },
   instructor: {
     fontSize: 11,
+    flexShrink: 1,
   },
   bottomRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 4,
+    marginTop: 6,
   },
   ratingRow: {
     flexDirection: "row",
@@ -159,13 +172,20 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   freeText: {
-    fontSize: 14,
-    fontWeight: "700",
-    color: "#16A34A",
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#FFF",
+    backgroundColor: "#16A34A",
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 6,
+    overflow: "hidden",
+    flexShrink: 0,
   },
   priceText: {
-    fontSize: 14,
-    fontWeight: "700",
+    fontSize: 16,
+    fontWeight: "800",
+    flexShrink: 0,
   },
   progressContainer: {
     flexDirection: "row",
@@ -188,25 +208,31 @@ const styles = StyleSheet.create({
   // Horizontal card
   horizontalCard: {
     flexDirection: "row",
-    borderRadius: 14,
+    borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",
     marginBottom: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   horizontalThumbnail: {
-    width: 90,
-    height: 90,
+    width: 100,
+    height: 100,
     resizeMode: "cover",
   },
   horizontalContent: {
     flex: 1,
-    padding: 10,
+    padding: 12,
     gap: 2,
   },
   horizontalTitle: {
     fontSize: 13,
     fontWeight: "700",
     lineHeight: 18,
+    flexShrink: 1,
   },
   metaRow: {
     flexDirection: "row",
@@ -222,5 +248,7 @@ const styles = StyleSheet.create({
   priceCol: {
     paddingRight: 12,
     justifyContent: "center",
+    flexShrink: 0,
+    minWidth: 80,
   },
 });

@@ -27,6 +27,7 @@ export default function CourseDetailScreen() {
   const course = COURSES.find((c) => c.id === id);
   const courseProgress = course ? getCourseProgress(course.id) : null;
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const isEnrolled = !!courseProgress;
 
   useEffect(() => {
     if (course?.isPurchased && !courseProgress) {
@@ -160,7 +161,7 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* Progress (if enrolled) */}
-          {course.isPurchased && hasStarted && (
+          {isEnrolled && hasStarted && (
             <View style={[styles.progressCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
               <View style={styles.progressHeader}>
                 <View>
@@ -214,7 +215,7 @@ export default function CourseDetailScreen() {
                   },
                 ]}
                 onPress={() => {
-                  if (course.isPurchased) {
+                  if (isEnrolled) {
                     router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: mod.id } });
                   }
                 }}
@@ -245,7 +246,7 @@ export default function CourseDetailScreen() {
                     )}
                   </View>
                 </View>
-                {course.isPurchased ? (
+                {isEnrolled ? (
                   <Feather 
                     name={isCompleted ? "check-circle" : "play-circle"} 
                     size={20} 
@@ -259,7 +260,7 @@ export default function CourseDetailScreen() {
           })}
 
           {/* Quiz */}
-          {quiz && course.isPurchased && (
+          {quiz && isEnrolled && (
             <>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Quiz</Text>
               <Pressable
@@ -291,7 +292,7 @@ export default function CourseDetailScreen() {
           },
         ]}
       >
-        {course.isPurchased ? (
+        {isEnrolled ? (
           <Pressable
             style={[styles.ctaBtn, { backgroundColor: progress === 100 ? "#10B981" : colors.primary }]}
             onPress={() => {

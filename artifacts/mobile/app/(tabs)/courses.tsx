@@ -64,7 +64,7 @@ export default function CoursesScreen() {
       <ScrollView
         contentContainerStyle={[
           styles.list,
-          { paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 90 },
+          { paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 },
         ]}
         showsVerticalScrollIndicator={false}
       >

@@ -26,7 +26,7 @@ export default function NewsDetailScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 20 }}
+        contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
       >
         <View style={styles.imageContainer}>
           <Image source={item.thumbnail} style={styles.image} />
