@@ -29,6 +29,14 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [grade, setGrade] = useState("");
+  const [school, setSchool] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
+  const [gradeError, setGradeError] = useState("");
+  const [schoolError, setSchoolError] = useState("");
 
   async function handleGoogleSignup() {
     setError("");
@@ -45,19 +53,58 @@ export default function RegisterScreen() {
   }
 
   async function handleRegister() {
-    if (!name || !email || !password || !confirm) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    if (password.length < 6) {
-      setError("Password must be at least 6 characters.");
-      return;
-    }
+    setNameError("");
+    setEmailError("");
+    setPasswordError("");
+    setConfirmError("");
+    setGradeError("");
+    setSchoolError("");
     setError("");
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let hasError = false;
+
+    if (!name) {
+      setNameError("Name is required");
+      hasError = true;
+    }
+
+    if (!email) {
+      setEmailError("Email is required");
+      hasError = true;
+    } else if (!emailRegex.test(email)) {
+      setEmailError("Please enter a valid email address");
+      hasError = true;
+    }
+
+    if (!password) {
+      setPasswordError("Password is required");
+      hasError = true;
+    } else if (password.length < 8) {
+      setPasswordError("Password must be at least 8 characters");
+      hasError = true;
+    }
+
+    if (!confirm) {
+      setConfirmError("Please confirm your password");
+      hasError = true;
+    } else if (password !== confirm) {
+      setConfirmError("Passwords do not match");
+      hasError = true;
+    }
+
+    if (!grade) {
+      setGradeError("Grade is required");
+      hasError = true;
+    }
+
+    if (!school) {
+      setSchoolError("School is required");
+      hasError = true;
+    }
+
+    if (hasError) return;
+
     setLoading(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
@@ -65,9 +112,7 @@ export default function RegisterScreen() {
     setLoading(false);
     
     if (result.success) {
-      // Show success message about email confirmation
       setError("Success! Please check your email to confirm your account.");
-      // Redirect to login after 2 seconds
       setTimeout(() => router.replace("/(auth)/login"), 2000);
     } else {
       setError(result.error || "Registration failed. Please try again.");
@@ -99,35 +144,42 @@ export default function RegisterScreen() {
           ) : null}
 
           {[
-            { label: "Full Name", value: name, setter: setName, icon: "user", placeholder: "Your full name", keyboard: "default" as const, secure: false },
-            { label: "Email", value: email, setter: setEmail, icon: "mail", placeholder: "your@email.com", keyboard: "email-address" as const, secure: false },
+            { label: "Full Name", value: name, setter: setName, icon: "user", placeholder: "Your full name", keyboard: "default" as const, secure: false, error: nameError, setError: setNameError },
+            { label: "Email", value: email, setter: setEmail, icon: "mail", placeholder: "your@email.com", keyboard: "email-address" as const, secure: false, error: emailError, setError: setEmailError },
           ].map((field) => (
             <View style={styles.fieldGroup} key={field.label}>
               <Text style={[styles.label, { color: colors.foreground }]}>{field.label}</Text>
-              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: field.error ? "#DC2626" : colors.border }]}>
                 <Feather name={field.icon as any} size={16} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
                   value={field.value}
-                  onChangeText={field.setter}
+                  onChangeText={(text) => {
+                    field.setter(text);
+                    field.setError("");
+                  }}
                   placeholder={field.placeholder}
                   placeholderTextColor={colors.mutedForeground}
                   keyboardType={field.keyboard}
                   autoCapitalize={field.keyboard === "email-address" ? "none" : "words"}
                 />
               </View>
+              {field.error ? <Text style={styles.fieldError}>{field.error}</Text> : null}
             </View>
           ))}
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: passwordError ? "#DC2626" : colors.border }]}>
               <Feather name="lock" size={16} color={colors.mutedForeground} />
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
                 value={password}
-                onChangeText={setPassword}
-                placeholder="Min 6 characters"
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setPasswordError("");
+                }}
+                placeholder="Min 8 characters"
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
               />
@@ -135,21 +187,66 @@ export default function RegisterScreen() {
                 <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
               </Pressable>
             </View>
+            {passwordError ? (
+              <Text style={styles.fieldError}>{passwordError}</Text>
+            ) : (
+              <Text style={[styles.fieldHint, { color: colors.mutedForeground }]}>Must be at least 8 characters</Text>
+            )}
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: colors.foreground }]}>Confirm Password</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: confirmError ? "#DC2626" : colors.border }]}>
               <Feather name="lock" size={16} color={colors.mutedForeground} />
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
                 value={confirm}
-                onChangeText={setConfirm}
+                onChangeText={(text) => {
+                  setConfirm(text);
+                  setConfirmError("");
+                }}
                 placeholder="Repeat password"
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
               />
             </View>
+            {confirmError ? <Text style={styles.fieldError}>{confirmError}</Text> : null}
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.foreground }]}>Grade</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: gradeError ? "#DC2626" : colors.border }]}>
+              <Feather name="book-open" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground }]}
+                value={grade}
+                onChangeText={(text) => {
+                  setGrade(text);
+                  setGradeError("");
+                }}
+                placeholder="e.g., 10th Grade"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+            {gradeError ? <Text style={styles.fieldError}>{gradeError}</Text> : null}
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <Text style={[styles.label, { color: colors.foreground }]}>School</Text>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: schoolError ? "#DC2626" : colors.border }]}>
+              <Feather name="home" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground }]}
+                value={school}
+                onChangeText={(text) => {
+                  setSchool(text);
+                  setSchoolError("");
+                }}
+                placeholder="Your school name"
+                placeholderTextColor={colors.mutedForeground}
+              />
+            </View>
+            {schoolError ? <Text style={styles.fieldError}>{schoolError}</Text> : null}
           </View>
 
           <Pressable
@@ -224,4 +321,6 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
   footerText: { fontSize: 14 },
   link: { fontSize: 14, fontWeight: "700" },
+  fieldError: { fontSize: 12, color: "#DC2626", marginTop: 4 },
+  fieldHint: { fontSize: 12, marginTop: 4 },
 });

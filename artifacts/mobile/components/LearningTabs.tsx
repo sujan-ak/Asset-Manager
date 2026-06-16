@@ -2,6 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import React, { useState } from "react";
 import {
+  Alert,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -10,18 +11,42 @@ import {
 } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { Module } from "@/data/mockData";
+import { QUIZZES } from "@/data/mockData";
+import { router, useLocalSearchParams } from "expo-router";
 
 interface LearningTabsProps {
   module: Module;
 }
 
-type TabType = "overview" | "resources" | "notes";
+type TabType = "overview" | "quiz" | "resources" | "notes";
 
 export function LearningTabs({ module }: LearningTabsProps) {
   const colors = useColors();
   const [activeTab, setActiveTab] = useState<TabType>("overview");
+  const [inQuiz, setInQuiz] = useState(false);
+  const { courseId } = useLocalSearchParams<{ courseId: string }>();
+  const courseQuiz = QUIZZES.find(q => q.courseId === courseId);
 
   const handleTabPress = async (tab: TabType) => {
+    if (inQuiz && tab !== "quiz") {
+      Alert.alert(
+        "Exit Quiz?",
+        "Are you sure you want to leave? Your progress will be lost.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Exit",
+            style: "destructive",
+            onPress: () => {
+              setInQuiz(false);
+              setActiveTab(tab);
+              Haptics.selectionAsync();
+            },
+          },
+        ]
+      );
+      return;
+    }
     await Haptics.selectionAsync();
     setActiveTab(tab);
   };
@@ -37,6 +62,7 @@ export function LearningTabs({ module }: LearningTabsProps) {
       <View style={[styles.tabHeaders, { borderBottomColor: colors.border }]}>
         {[
           { key: "overview", label: "Overview", icon: "book-open" },
+          ...(courseQuiz ? [{ key: "quiz", label: "Quiz", icon: "help-circle" }] : []),
           { key: "resources", label: "Resources", icon: "download" },
           { key: "notes", label: "Notes", icon: "edit-3" },
         ].map((tab) => (
@@ -85,6 +111,60 @@ export function LearningTabs({ module }: LearningTabsProps) {
             <Text style={[styles.description, { color: colors.mutedForeground }]}>
               {module.description}
             </Text>
+          </View>
+        )}
+
+        {activeTab === "quiz" && courseQuiz && (
+          <View style={styles.quizContent}>
+            {!inQuiz ? (
+              <View style={styles.quizIntro}>
+                <View style={[styles.quizIconContainer, { backgroundColor: colors.accent }]}>
+                  <Feather name="award" size={48} color={colors.primary} />
+                </View>
+                <Text style={[styles.quizTitle, { color: colors.foreground }]}>
+                  {courseQuiz.title}
+                </Text>
+                <Text style={[styles.quizDescription, { color: colors.mutedForeground }]}>
+                  Test your knowledge with {courseQuiz.questions.length} questions
+                </Text>
+                <View style={styles.quizMeta}>
+                  <View style={styles.quizMetaItem}>
+                    <Feather name="list" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.quizMetaText, { color: colors.mutedForeground }]}>
+                      {courseQuiz.questions.length} Questions
+                    </Text>
+                  </View>
+                  <View style={styles.quizMetaItem}>
+                    <Feather name="clock" size={16} color={colors.mutedForeground} />
+                    <Text style={[styles.quizMetaText, { color: colors.mutedForeground }]}>
+                      {courseQuiz.timeLimit / 60} Minutes
+                    </Text>
+                  </View>
+                </View>
+                <Pressable
+                  style={[styles.startQuizBtn, { backgroundColor: colors.primary }]}
+                  onPress={() => {
+                    setInQuiz(true);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  }}
+                >
+                  <Text style={styles.startQuizBtnText}>Start Quiz</Text>
+                  <Feather name="arrow-right" size={18} color="#FFF" />
+                </Pressable>
+              </View>
+            ) : (
+              <View style={styles.quizInProgress}>
+                <Text style={[styles.quizInProgressText, { color: colors.foreground }]}>
+                  Quiz feature coming soon! Full quiz implementation will be added in the next update.
+                </Text>
+                <Pressable
+                  style={[styles.exitQuizBtn, { backgroundColor: colors.muted }]}
+                  onPress={() => setInQuiz(false)}
+                >
+                  <Text style={[styles.exitQuizBtnText, { color: colors.foreground }]}>Exit Quiz</Text>
+                </Pressable>
+              </View>
+            )}
           </View>
         )}
 
@@ -286,5 +366,78 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
     lineHeight: 20,
+  },
+
+  // Quiz Styles
+  quizContent: {
+    padding: 16,
+  },
+  quizIntro: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  quizIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 20,
+  },
+  quizTitle: {
+    fontSize: 20,
+    fontWeight: "700",
+    marginBottom: 8,
+    textAlign: "center",
+  },
+  quizDescription: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 20,
+  },
+  quizMeta: {
+    flexDirection: "row",
+    gap: 24,
+    marginBottom: 24,
+  },
+  quizMetaItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  quizMetaText: {
+    fontSize: 13,
+  },
+  startQuizBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 14,
+    paddingHorizontal: 32,
+    borderRadius: 10,
+    gap: 8,
+  },
+  startQuizBtnText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  quizInProgress: {
+    padding: 20,
+    alignItems: "center",
+  },
+  quizInProgressText: {
+    fontSize: 15,
+    textAlign: "center",
+    marginBottom: 20,
+    lineHeight: 22,
+  },
+  exitQuizBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+  },
+  exitQuizBtnText: {
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

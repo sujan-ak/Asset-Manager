@@ -1,67 +1,101 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Course } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useProgress } from "@/context/ProgressContext";
 
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+// 48 = 20px left padding + 8px gap + 20px right padding
+
 interface CourseCardProps {
   course: Course;
   horizontal?: boolean;
+  compact?: boolean;
 }
 
-export function CourseCard({ course, horizontal = false }: CourseCardProps) {
+export function CourseCard({ course, horizontal = false, compact = false }: CourseCardProps) {
   const colors = useColors();
   const { getCourseProgress } = useProgress();
   const courseProgress = getCourseProgress(course.id);
   const isEnrolled = !!courseProgress;
   const progress = courseProgress?.progress || 0;
 
+  const renderStars = (rating: number) => {
+    const stars = [];
+    const fullStars = Math.floor(rating);
+    const hasHalfStar = rating % 1 >= 0.5;
+    
+    for (let i = 1; i <= 5; i++) {
+      if (i <= fullStars) {
+        stars.push(<MaterialIcons key={i} name="star" size={11} color="#F59E0B" />);
+      } else if (i === fullStars + 1 && hasHalfStar) {
+        stars.push(<MaterialIcons key={i} name="star-half" size={11} color="#F59E0B" />);
+      } else {
+        stars.push(<MaterialIcons key={i} name="star-outline" size={11} color="#E5E7EB" />);
+      }
+    }
+    return stars;
+  };
+
+  const getBadgeInfo = () => {
+    if (course.isFree) return { text: "Free", color: "#16A34A" };
+    if (course.isBestseller) return { text: "Bestseller", color: "#F59E0B" };
+    return null;
+  };
+
+  const badge = getBadgeInfo();
+
   if (horizontal) {
     return (
       <Pressable
         style={({ pressed }) => [
           styles.horizontalCard,
-          { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+          { opacity: pressed ? 0.7 : 1 },
         ]}
         onPress={() => router.push({ pathname: "/course/[id]", params: { id: course.id } })}
       >
-        <Image source={course.thumbnail} style={styles.horizontalThumbnail} />
+        <View style={styles.horizontalThumbnailContainer}>
+          <Image source={course.thumbnail} style={styles.horizontalThumbnail} />
+          {badge && (
+            <View style={[styles.badge, { backgroundColor: badge.color }]}>
+              <Text style={styles.badgeText}>{badge.text}</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.horizontalContent}>
-          <View style={[styles.categoryBadge, { backgroundColor: colors.accent }]}>
+          <View style={[styles.categoryPill, { backgroundColor: colors.accent }]}>
             <Text style={[styles.categoryText, { color: colors.primary }]}>{course.category}</Text>
           </View>
           <Text style={[styles.horizontalTitle, { color: colors.foreground }]} numberOfLines={2}>
             {course.title}
           </Text>
           <Text style={[styles.instructor, { color: colors.mutedForeground }]}>{course.instructor}</Text>
-          <View style={styles.metaRow}>
-            <Feather name="star" size={12} color="#F59E0B" />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}> {course.rating}</Text>
-            <Text style={[styles.metaDot, { color: colors.border }]}> · </Text>
-            <Feather name="book" size={12} color={colors.mutedForeground} />
-            <Text style={[styles.metaText, { color: colors.mutedForeground }]}> {course.lessons} lessons</Text>
+          <View style={styles.ratingRow}>
+            <View style={styles.starsContainer}>
+              {renderStars(course.rating)}
+            </View>
+            <Text style={[styles.ratingNumber, { color: colors.mutedForeground }]}>{course.rating}</Text>
+            <Text style={[styles.reviewCount, { color: colors.mutedForeground }]}>({course.reviews})</Text>
           </View>
-          {isEnrolled && progress > 0 && (
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+          {isEnrolled && progress > 0 ? (
+            <View style={styles.horizontalProgressContainer}>
+              <View style={[styles.thinProgressTrack, { backgroundColor: colors.muted }]}>
                 <View
                   style={[
-                    styles.progressFill,
+                    styles.thinProgressFill,
                     { width: `${progress}%` as any, backgroundColor: colors.primary },
                   ]}
                 />
               </View>
-              <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{progress}%</Text>
+              <Text style={[styles.progressPercentage, { color: colors.mutedForeground }]}>{progress}%</Text>
             </View>
-          )}
-        </View>
-        <View style={styles.priceCol}>
-          {course.isFree ? (
-            <Text style={styles.freeText}>Free</Text>
           ) : (
-            <Text style={[styles.priceText, { color: colors.foreground }]}>₹{course.price}</Text>
+            <Text style={[styles.priceTextLarge, { color: colors.foreground }]}>
+              {course.isFree ? "Free" : `₹${course.price}`}
+            </Text>
           )}
         </View>
       </Pressable>
@@ -71,43 +105,50 @@ export function CourseCard({ course, horizontal = false }: CourseCardProps) {
   return (
     <Pressable
       style={({ pressed }) => [
-        styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+        compact ? styles.compactCard : styles.card,
+        { opacity: pressed ? 0.7 : 1 },
       ]}
       onPress={() => router.push({ pathname: "/course/[id]", params: { id: course.id } })}
     >
-      <Image source={course.thumbnail} style={styles.thumbnail} />
+      <View style={styles.thumbnailContainer}>
+        <Image source={course.thumbnail} style={compact ? styles.compactThumbnail : styles.thumbnail} />
+        {badge && (
+          <View style={[styles.badge, { backgroundColor: badge.color }]}>
+            <Text style={styles.badgeText}>{badge.text}</Text>
+          </View>
+        )}
+      </View>
       <View style={styles.cardContent}>
-        <View style={[styles.categoryBadge, { backgroundColor: colors.accent }]}>
+        <View style={[styles.categoryPill, { backgroundColor: colors.accent }]}>
           <Text style={[styles.categoryText, { color: colors.primary }]}>{course.category}</Text>
         </View>
         <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
           {course.title}
         </Text>
         <Text style={[styles.instructor, { color: colors.mutedForeground }]}>{course.instructor}</Text>
-        <View style={styles.bottomRow}>
-          <View style={styles.ratingRow}>
-            <Feather name="star" size={12} color="#F59E0B" />
-            <Text style={[styles.ratingText, { color: colors.mutedForeground }]}> {course.rating}</Text>
+        <View style={styles.ratingRow}>
+          <View style={styles.starsContainer}>
+            {renderStars(course.rating)}
           </View>
-          {course.isFree ? (
-            <Text style={styles.freeText}>Free</Text>
-          ) : (
-            <Text style={[styles.priceText, { color: colors.foreground }]}>₹{course.price}</Text>
-          )}
+          <Text style={[styles.ratingNumber, { color: colors.mutedForeground }]}>{course.rating}</Text>
+          <Text style={[styles.reviewCount, { color: colors.mutedForeground }]}>({course.reviews})</Text>
         </View>
-        {isEnrolled && progress > 0 && (
-          <View style={styles.progressContainer}>
-            <View style={[styles.progressTrack, { backgroundColor: colors.muted }]}>
+        {isEnrolled && progress > 0 ? (
+          <View style={styles.progressContainerBottom}>
+            <View style={[styles.thinProgressTrack, { backgroundColor: colors.muted }]}>
               <View
                 style={[
-                  styles.progressFill,
+                  styles.thinProgressFill,
                   { width: `${progress}%` as any, backgroundColor: colors.primary },
                 ]}
               />
             </View>
-            <Text style={[styles.progressText, { color: colors.mutedForeground }]}>{progress}%</Text>
+            <Text style={[styles.progressPercentage, { color: colors.mutedForeground }]}>{progress}%</Text>
           </View>
+        ) : (
+          <Text style={[styles.priceTextLarge, { color: colors.foreground }]}>
+            {course.isFree ? "Free" : `₹${course.price}`}
+          </Text>
         )}
       </View>
     </Pressable>
@@ -115,140 +156,139 @@ export function CourseCard({ course, horizontal = false }: CourseCardProps) {
 }
 
 const styles = StyleSheet.create({
+  // Vertical card - borderless modern style
   card: {
-    width: 260,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
+    width: CARD_WIDTH,
     marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
+  },
+  compactCard: {
+    width: 170,
+    marginRight: 12,
+  },
+  thumbnailContainer: {
+    position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
   },
   thumbnail: {
     width: "100%",
-    height: 140,
+    height: 110,
     resizeMode: "cover",
   },
-  cardContent: {
-    padding: 16,
-    gap: 6,
+  compactThumbnail: {
+    width: "100%",
+    height: 85,
+    resizeMode: "cover",
   },
-  categoryBadge: {
+  badge: {
+    position: "absolute",
+    top: 8,
+    left: 8,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  badgeText: {
+    color: "#FFF",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  cardContent: {
+    paddingTop: 10,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+    gap: 4,
+  },
+  categoryPill: {
     alignSelf: "flex-start",
     paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingVertical: 3,
     borderRadius: 6,
-    marginBottom: 2,
   },
   categoryText: {
     fontSize: 10,
     fontWeight: "600",
   },
   title: {
-    fontSize: 15,
+    fontSize: 13,
     fontWeight: "700",
-    lineHeight: 20,
-    minHeight: 40,
-    flexShrink: 1,
+    lineHeight: 18,
   },
   instructor: {
     fontSize: 11,
-    flexShrink: 1,
-  },
-  bottomRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginTop: 6,
+    marginTop: -2,
   },
   ratingRow: {
     flexDirection: "row",
     alignItems: "center",
+    gap: 4,
+    marginTop: 2,
   },
-  ratingText: {
+  starsContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 1,
+  },
+  ratingNumber: {
     fontSize: 11,
+    fontWeight: "700",
   },
-  freeText: {
-    fontSize: 15,
+  reviewCount: {
+    fontSize: 10,
+  },
+  priceTextLarge: {
+    fontSize: 14,
     fontWeight: "800",
-    color: "#FFF",
-    backgroundColor: "#16A34A",
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 6,
-    overflow: "hidden",
-    flexShrink: 0,
+    marginTop: 4,
   },
-  priceText: {
-    fontSize: 16,
-    fontWeight: "800",
-    flexShrink: 0,
-  },
-  progressContainer: {
+  progressContainerBottom: {
     flexDirection: "row",
     alignItems: "center",
     gap: 6,
     marginTop: 6,
   },
-  progressTrack: {
+  thinProgressTrack: {
     flex: 1,
-    height: 4,
-    borderRadius: 2,
+    height: 3,
+    borderRadius: 1.5,
   },
-  progressFill: {
-    height: 4,
-    borderRadius: 2,
+  thinProgressFill: {
+    height: 3,
+    borderRadius: 1.5,
   },
-  progressText: {
+  progressPercentage: {
     fontSize: 10,
+    fontWeight: "600",
   },
-  // Horizontal card
+  // Horizontal card - borderless modern style
   horizontalCard: {
     flexDirection: "row",
-    borderRadius: 16,
-    borderWidth: 1,
+    marginBottom: 16,
+    gap: 12,
+  },
+  horizontalThumbnailContainer: {
+    position: "relative",
+    borderRadius: 8,
     overflow: "hidden",
-    marginBottom: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
   },
   horizontalThumbnail: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 90,
     resizeMode: "cover",
   },
   horizontalContent: {
     flex: 1,
-    padding: 12,
-    gap: 2,
+    gap: 4,
   },
   horizontalTitle: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: "700",
     lineHeight: 18,
-    flexShrink: 1,
   },
-  metaRow: {
+  horizontalProgressContainer: {
     flexDirection: "row",
     alignItems: "center",
-    marginTop: 2,
-  },
-  metaText: {
-    fontSize: 11,
-  },
-  metaDot: {
-    fontSize: 11,
-  },
-  priceCol: {
-    paddingRight: 12,
-    justifyContent: "center",
-    flexShrink: 0,
-    minWidth: 80,
+    gap: 6,
+    marginTop: 4,
   },
 });

@@ -46,6 +46,18 @@ export function CourseCardSkeleton() {
   );
 }
 
+export function ProductCardSkeleton() {
+  return (
+    <View style={styles.productCard}>
+      <Skeleton height={140} borderRadius={0} />
+      <View style={styles.productContent}>
+        <Skeleton width="80%" height={14} />
+        <Skeleton width={60} height={12} />
+      </View>
+    </View>
+  );
+}
+
 const styles = StyleSheet.create({
   card: {
     width: 200,
@@ -55,6 +67,17 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   content: {
+    padding: 12,
+    gap: 8,
+  },
+  productCard: {
+    width: 160,
+    borderRadius: 14,
+    overflow: "hidden",
+    marginRight: 12,
+    gap: 8,
+  },
+  productContent: {
     padding: 12,
     gap: 8,
   },

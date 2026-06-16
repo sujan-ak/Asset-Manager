@@ -28,6 +28,8 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
+  const [emailError, setEmailError] = useState("");
+  const [passwordError, setPasswordError] = useState("");
 
   async function handleGoogleLogin() {
     setError("");
@@ -44,11 +46,28 @@ export default function LoginScreen() {
   }
 
   async function handleLogin() {
-    if (!email || !password) {
-      setError("Please enter your email and password.");
-      return;
-    }
+    setEmailError("");
+    setPasswordError("");
     setError("");
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    let hasError = false;
+
+    if (!email) {
+      setEmailError("Email is required");
+      hasError = true;
+    } else if (!emailRegex.test(email)) {
+      setEmailError("Please enter a valid email address");
+      hasError = true;
+    }
+
+    if (!password) {
+      setPasswordError("Password is required");
+      hasError = true;
+    }
+
+    if (hasError) return;
+
     setLoading(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     
@@ -90,12 +109,15 @@ export default function LoginScreen() {
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: colors.foreground }]}>Email</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: emailError ? "#DC2626" : colors.border }]}>
               <Feather name="mail" size={16} color={colors.mutedForeground} />
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
                 value={email}
-                onChangeText={setEmail}
+                onChangeText={(text) => {
+                  setEmail(text);
+                  setEmailError("");
+                }}
                 placeholder="Enter your email"
                 placeholderTextColor={colors.mutedForeground}
                 keyboardType="email-address"
@@ -103,16 +125,20 @@ export default function LoginScreen() {
                 autoCorrect={false}
               />
             </View>
+            {emailError ? <Text style={styles.fieldError}>{emailError}</Text> : null}
           </View>
 
           <View style={styles.fieldGroup}>
             <Text style={[styles.label, { color: colors.foreground }]}>Password</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: passwordError ? "#DC2626" : colors.border }]}>
               <Feather name="lock" size={16} color={colors.mutedForeground} />
               <TextInput
                 style={[styles.input, { color: colors.foreground }]}
                 value={password}
-                onChangeText={setPassword}
+                onChangeText={(text) => {
+                  setPassword(text);
+                  setPasswordError("");
+                }}
                 placeholder="Enter your password"
                 placeholderTextColor={colors.mutedForeground}
                 secureTextEntry={!showPassword}
@@ -121,6 +147,7 @@ export default function LoginScreen() {
                 <Feather name={showPassword ? "eye-off" : "eye"} size={16} color={colors.mutedForeground} />
               </Pressable>
             </View>
+            {passwordError ? <Text style={styles.fieldError}>{passwordError}</Text> : null}
           </View>
 
           <Pressable onPress={() => router.push("/(auth)/forgot-password")} style={styles.forgotRow}>
@@ -232,4 +259,5 @@ const styles = StyleSheet.create({
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
   footerText: { fontSize: 14 },
   registerLink: { fontSize: 14, fontWeight: "700" },
+  fieldError: { fontSize: 12, color: "#DC2626", marginTop: 4 },
 });

@@ -8,7 +8,7 @@ import {
   WatchlistItem,
 } from "@/lib/progressStorage";
 import { ProgressCalculator } from "@/lib/progressCalculator";
-import { COURSES } from "@/data/mockData";
+import * as courseDataProvider from "@/services/courseDataProvider";
 
 interface ProgressContextType {
   courseProgress: Map<string, UserCourseProgress>;
@@ -83,7 +83,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     const existing = courseProgress.get(courseId);
     if (existing) return;
 
-    const course = COURSES.find((c) => c.id === courseId);
+    const course = courseDataProvider.getCourseById(courseId);
     if (!course) return;
 
     const newProgress: UserCourseProgress = {
@@ -210,7 +210,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   ): Promise<void> {
     if (!user?.id) return;
 
-    const course = COURSES.find((c) => c.id === courseId);
+    const course = courseDataProvider.getCourseById(courseId);
     if (!course) return;
 
     const module = course.modules.find((m) => m.id === moduleId);

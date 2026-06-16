@@ -26,6 +26,7 @@ function TabLayout() {
           borderTopColor: colors.border,
           elevation: 0,
           height: isWeb ? 84 : undefined,
+          zIndex: 999,
         },
         tabBarBackground: () =>
           isIOS ? (
@@ -63,6 +64,14 @@ function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="search"
+        options={{
+          title: "Search",
+          tabBarIcon: ({ color }) => <Feather name="search" size={22} color={color} />,
+          tabBarAccessibilityLabel: "Search tab",
+        }}
+      />
+      <Tabs.Screen
         name="progress"
         options={{
           title: "Progress",
@@ -73,9 +82,7 @@ function TabLayout() {
       <Tabs.Screen
         name="news"
         options={{
-          title: "News",
-          tabBarIcon: ({ color }) => <Feather name="file-text" size={22} color={color} />,
-          tabBarAccessibilityLabel: "News tab",
+          href: null,
         }}
       />
       <Tabs.Screen

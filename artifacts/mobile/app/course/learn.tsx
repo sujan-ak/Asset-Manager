@@ -23,7 +23,7 @@ export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { courseId, moduleId } = useLocalSearchParams<{ courseId: string; moduleId: string }>();
-  const { getModuleProgress, updateVideoProgress, enrollCourse, getCourseProgress } = useProgress();
+  const { getModuleProgress, updateVideoProgress, enrollCourse, getCourseProgress, completeModule } = useProgress();
   const course = COURSES.find((c) => c.id === courseId);
   const [activeTab, setActiveTab] = useState<"overview" | "content">("overview");
   const [activeModuleId, setActiveModuleId] = useState(moduleId ?? course?.modules[0]?.id);
@@ -72,6 +72,8 @@ export default function LearnScreen() {
   };
 
   const handleVideoComplete = async () => {
+    // Mark the module as completed
+    await completeModule(courseId, activeModule.id);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowCompleteModal(true);
   };
@@ -104,6 +106,34 @@ export default function LearnScreen() {
     return course.modules[currentIndex + 1];
   };
 
+  const getPreviousModule = () => {
+    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
+    return course.modules[currentIndex - 1];
+  };
+
+  const handleMarkComplete = async () => {
+    await completeModule(courseId, activeModule.id);
+    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+  };
+
+  const handlePreviousLesson = async () => {
+    await Haptics.selectionAsync();
+    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
+    const prevModule = course.modules[currentIndex - 1];
+    if (prevModule) {
+      setActiveModuleId(prevModule.id);
+    }
+  };
+
+  const handleNextLessonNav = async () => {
+    await Haptics.selectionAsync();
+    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
+    const nextModule = course.modules[currentIndex + 1];
+    if (nextModule) {
+      setActiveModuleId(nextModule.id);
+    }
+  };
+
   const handleModuleSelect = async (moduleId: string) => {
     await Haptics.selectionAsync();
     setActiveModuleId(moduleId);
@@ -129,7 +159,13 @@ export default function LearnScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Header */}
       <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)/courses");
+          }
+        }} style={styles.backBtn}>
           <Feather name="arrow-left" size={20} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
@@ -138,45 +174,69 @@ export default function LearnScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      {/* Course Header - PHASE 2 */}
+      {/* Course Header - Compact */}
       <View style={[styles.courseHeader, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-        <View style={styles.courseHeaderTop}>
-          <Text style={[styles.courseTitle, { color: colors.foreground }]} numberOfLines={1}>
-            {course.title}
-          </Text>
-          <View style={[styles.progressBadge, { backgroundColor: colors.accent }]}>
-            <Text style={[styles.progressBadgeText, { color: colors.primary }]}>
-              {Math.round(progressPercentage)}%
-            </Text>
-          </View>
-        </View>
-        <View style={styles.courseHeaderBottom}>
-          <View style={styles.statItem}>
-            <Feather name="check-circle" size={14} color="#10B981" />
-            <Text style={[styles.statText, { color: colors.mutedForeground }]}>
-              {completedModules} of {course.modules.length} completed
+        <Text style={[styles.courseTitle, { color: colors.foreground }]} numberOfLines={2}>
+          {course.title}
+        </Text>
+        <View style={styles.statsRow}>
+          <View style={styles.statItemInline}>
+            <Feather name="check-circle" size={13} color="#10B981" />
+            <Text style={[styles.statTextInline, { color: colors.foreground, fontWeight: "600" }]}>
+              {completedModules} Completed
             </Text>
           </View>
           {remainingModules > 0 && (
-            <View style={styles.statItem}>
-              <Feather name="circle" size={14} color={colors.mutedForeground} />
-              <Text style={[styles.statText, { color: colors.mutedForeground }]}>
-                {remainingModules} remaining
-              </Text>
-            </View>
+            <>
+              <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
+              <View style={styles.statItemInline}>
+                <Feather name="circle" size={13} color={colors.mutedForeground} />
+                <Text style={[styles.statTextInline, { color: colors.mutedForeground }]}>
+                  {remainingModules} Remaining
+                </Text>
+              </View>
+            </>
           )}
+        </View>
+        <View style={styles.progressBarContainer}>
+          <View style={[styles.progressBarTrack, { backgroundColor: colors.muted }]}>
+            <View
+              style={[
+                styles.progressBarFill,
+                { width: `${progressPercentage}%` as any, backgroundColor: colors.primary },
+              ]}
+            />
+          </View>
+          <Text style={[styles.progressBarText, { color: colors.mutedForeground }]}>
+            {Math.round(progressPercentage)}%
+          </Text>
         </View>
       </View>
 
-      {/* Video Player - PHASE 1 */}
-      <VideoPlayerEnhanced
-        videoUrl={activeModule.videoUrl}
-        initialTime={initialTime}
-        onProgressUpdate={handleProgressUpdate}
-        onComplete={handleVideoComplete}
-      />
+      {/* Video Player - Compact 25% screen */}
+      <View style={styles.videoWrapper}>
+        <VideoPlayerEnhanced
+          videoUrl={activeModule.videoUrl}
+          initialTime={initialTime}
+          onProgressUpdate={handleProgressUpdate}
+          onComplete={handleVideoComplete}
+        />
+      </View>
 
-      {/* Tabs - PHASE 6 */}
+      {/* Mark Complete Button */}
+      {!moduleProgress?.isCompleted && (
+        <View style={[styles.actionButtonContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+          <Pressable
+            style={[styles.markCompleteBtn, { backgroundColor: colors.primary }]}
+            onPress={handleMarkComplete}
+          >
+            <Feather name="check" size={16} color="#FFF" />
+            <Text style={styles.markCompleteBtnText}>Mark Lesson Complete</Text>
+          </Pressable>
+        </View>
+      )}
+
+      {/* Tabs */}
       <View style={[styles.tabs, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
         {[
           ["overview", "Overview"],
@@ -193,7 +253,10 @@ export default function LearnScreen() {
             <Text
               style={[
                 styles.tabText,
-                { color: activeTab === key ? colors.primary : colors.mutedForeground },
+                {
+                  color: activeTab === key ? colors.primary : colors.mutedForeground,
+                  fontWeight: activeTab === key ? "700" : "600",
+                },
               ]}
             >
               {label}
@@ -274,6 +337,35 @@ export default function LearnScreen() {
             })}
           </View>
         )}
+
+        {/* Navigation Buttons */}
+        <View style={[styles.navButtons, { borderTopColor: colors.border }]}>
+          <Pressable
+            style={[
+              styles.navBtn,
+              styles.navBtnPrev,
+              { backgroundColor: colors.muted, opacity: getPreviousModule() ? 1 : 0.5 },
+            ]}
+            onPress={handlePreviousLesson}
+            disabled={!getPreviousModule()}
+          >
+            <Feather name="chevron-left" size={18} color={colors.foreground} />
+            <Text style={[styles.navBtnText, { color: colors.foreground }]}>Previous</Text>
+          </Pressable>
+
+          <Pressable
+            style={[
+              styles.navBtn,
+              styles.navBtnNext,
+              { backgroundColor: colors.primary, opacity: getNextModule() ? 1 : 0.5 },
+            ]}
+            onPress={handleNextLessonNav}
+            disabled={!getNextModule()}
+          >
+            <Text style={[styles.navBtnText, { color: "#FFF" }]}>Next Lesson</Text>
+            <Feather name="chevron-right" size={18} color="#FFF" />
+          </Pressable>
+        </View>
       </ScrollView>
 
       {/* Resume Modal - PHASE 3 */}
@@ -311,52 +403,86 @@ const styles = StyleSheet.create({
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: "700", textAlign: "center" },
   
-  // Course Header - PHASE 2
+  // Compact Course Header
   courseHeader: {
     paddingHorizontal: 16,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderBottomWidth: 1,
-    gap: 8,
-  },
-  courseHeaderTop: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-  },
-  courseTitle: {
-    flex: 1,
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  progressBadge: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  progressBadgeText: {
-    fontSize: 13,
-    fontWeight: "700",
-  },
-  courseHeaderBottom: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  statItem: {
-    flexDirection: "row",
-    alignItems: "center",
     gap: 6,
   },
-  statText: {
-    fontSize: 13,
+  courseTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    lineHeight: 18,
+  },
+  statsRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  statItemInline: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  statTextInline: {
+    fontSize: 12,
+  },
+  statDivider: {
+    width: 1,
+    height: 12,
+  },
+  progressBarContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressBarTrack: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+  },
+  progressBarFill: {
+    height: 4,
+    borderRadius: 2,
+  },
+  progressBarText: {
+    fontSize: 11,
+    fontWeight: "600",
+    minWidth: 32,
+  },
+
+  // Video wrapper - 25% screen height
+  videoWrapper: {
+    width: "100%",
+    maxHeight: 220,
+  },
+
+  // Mark Complete Button
+  actionButtonContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+  },
+  markCompleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 8,
+  },
+  markCompleteBtnText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   tabs: { flexDirection: "row", borderBottomWidth: 1 },
   tab: { flex: 1, paddingVertical: 14, alignItems: "center", borderBottomWidth: 2, borderBottomColor: "transparent" },
-  tabText: { fontSize: 14, fontWeight: "600" },
+  tabText: { fontSize: 14 },
   
-  // Professional Lesson List - PHASE 5
+  // Professional Lesson List
   moduleList: { padding: 16, gap: 10 },
   modItem: {
     flexDirection: "row",
@@ -371,4 +497,27 @@ const styles = StyleSheet.create({
   currentDot: { width: 8, height: 8, borderRadius: 4 },
   modTitle: { fontSize: 14, fontWeight: "600", lineHeight: 18 },
   modDuration: { fontSize: 12, marginTop: 3 },
+
+  // Navigation Buttons
+  navButtons: {
+    flexDirection: "row",
+    padding: 16,
+    gap: 12,
+    borderTopWidth: 1,
+  },
+  navBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 12,
+    borderRadius: 8,
+    gap: 6,
+  },
+  navBtnPrev: {},
+  navBtnNext: {},
+  navBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+  },
 });

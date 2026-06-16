@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useMemo } from "react";
 import {
@@ -16,7 +16,6 @@ import { COURSES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { ProgressAnalytics } from "@/lib/progressAnalytics";
 import { ProgressStats } from "@/components/ProgressStats";
-import { CourseProgressCard } from "@/components/CourseProgressCard";
 import { WatchlistCard } from "@/components/WatchlistCard";
 import { SectionHeader } from "@/components/SectionHeader";
 
@@ -52,12 +51,18 @@ export default function ProgressScreen() {
     >
       {/* Header */}
       <View style={styles.header}>
-        <View>
+        <View style={{ flex: 1 }}>
           <Text style={[styles.pageTitle, { color: colors.foreground }]}>Your Progress</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             Track your learning journey
           </Text>
         </View>
+        <Pressable
+          style={[styles.cartBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+          onPress={() => router.push("/(tabs)/store")}
+        >
+          <Ionicons name="cart-outline" size={20} color={colors.foreground} />
+        </Pressable>
       </View>
 
       {/* Empty State */}
@@ -242,6 +247,31 @@ export default function ProgressScreen() {
             )}
           </View>
 
+          {/* View My Courses Shortcut */}
+          <View style={styles.section}>
+            <Pressable
+              style={[
+                styles.coursesShortcut,
+                {
+                  backgroundColor: `${colors.primary}14`,
+                  borderColor: `${colors.primary}4D`,
+                },
+              ]}
+              onPress={() => router.push("/(tabs)/courses")}
+            >
+              <Feather name="book-open" size={20} color={colors.primary} />
+              <View style={styles.coursesShortcutText}>
+                <Text style={[styles.coursesShortcutTitle, { color: colors.primary }]}>
+                  My Enrolled Courses
+                </Text>
+                <Text style={[styles.coursesShortcutSubtitle, { color: colors.mutedForeground }]}>
+                  {coursesWithProgress.length} course{coursesWithProgress.length !== 1 ? "s" : ""} enrolled
+                </Text>
+              </View>
+              <Feather name="chevron-right" size={18} color={colors.primary} />
+            </Pressable>
+          </View>
+
           {/* Continue Learning */}
           {watchlist.length > 0 && (
             <View style={styles.section}>
@@ -306,21 +336,6 @@ export default function ProgressScreen() {
               </View>
             </View>
           )}
-
-          {/* Course Progress Cards */}
-          {coursesWithProgress.length > 0 && (
-            <View style={styles.section}>
-              <SectionHeader
-                title="Your Courses"
-                subtitle={`${coursesWithProgress.length} enrolled`}
-              />
-              <View style={styles.coursesList}>
-                {coursesWithProgress.map((course) => (
-                  <CourseProgressCard key={course.courseId} course={course} />
-                ))}
-              </View>
-            </View>
-          )}
         </>
       )}
     </ScrollView>
@@ -344,8 +359,19 @@ function formatCompletedDate(dateString: string): string {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     paddingHorizontal: 20,
     marginBottom: 24,
+  },
+  cartBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
   },
   pageTitle: { fontSize: 28, fontWeight: "800", marginBottom: 4 },
   subtitle: { fontSize: 14 },
@@ -568,9 +594,25 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
 
-  // Courses List
-  coursesList: {
+  // Courses Shortcut
+  coursesShortcut: {
+    flexDirection: "row",
+    alignItems: "center",
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 16,
+    marginHorizontal: 20,
     gap: 12,
-    paddingHorizontal: 20,
+  },
+  coursesShortcutText: {
+    flex: 1,
+  },
+  coursesShortcutTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  coursesShortcutSubtitle: {
+    fontSize: 13,
   },
 });

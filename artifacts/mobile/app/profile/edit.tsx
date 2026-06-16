@@ -31,9 +31,16 @@ export default function EditProfileScreen() {
   async function handleSave() {
     setLoading(true);
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    await updateUser({ name, grade, school });
+    const result = await updateUser({ name, grade, school });
     setLoading(false);
-    router.back();
+    
+    if (result.success) {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace("/(tabs)/profile");
+      }
+    }
   }
 
   const initials = name
@@ -47,7 +54,13 @@ export default function EditProfileScreen() {
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <View style={[styles.header, { paddingTop: topPad + 8, backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <Pressable onPress={() => router.back()}>
+          <Pressable onPress={() => {
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)/profile");
+            }
+          }}>
             <Feather name="x" size={22} color={colors.foreground} />
           </Pressable>
           <Text style={[styles.headerTitle, { color: colors.foreground }]}>Edit Profile</Text>

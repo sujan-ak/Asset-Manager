@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import {
@@ -11,16 +11,14 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CourseCard } from "@/components/CourseCard";
-import { NewsCard } from "@/components/NewsCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { WatchlistCard } from "@/components/WatchlistCard";
 import { LearningStreak } from "@/components/LearningStreak";
+import { ProductCard } from "@/components/ProductCard";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useProgress } from "@/context/ProgressContext";
-import { COURSES, NEWS_ITEMS, PRODUCTS } from "@/data/mockData";
+import { COURSES, PRODUCTS } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
-import { ProductCard } from "@/components/ProductCard";
-import { TEXT_STYLES } from "@/constants/typography";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -44,25 +42,36 @@ export default function HomeScreen() {
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   return (
-    <ScrollView
-      style={[styles.container, { backgroundColor: colors.background }]}
-      contentContainerStyle={{ paddingTop: topPad + 16, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
-      showsVerticalScrollIndicator={false}
-    >
-      {/* Header */}
-      <View style={styles.header}>
-        <View>
-          <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Good morning 👋</Text>
-          <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name ?? "Student"}</Text>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      {/* Fixed Header */}
+      <View style={[styles.fixedHeader, { backgroundColor: colors.background, paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Good morning 👋</Text>
+            <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name ?? "Student"}</Text>
+          </View>
+          <View style={styles.headerButtons}>
+            <Pressable
+              style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/(tabs)/news")}
+            >
+              <Feather name="file-text" size={20} color={colors.foreground} />
+            </Pressable>
+            <Pressable
+              style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/(tabs)/store")}
+            >
+              <Ionicons name="cart-outline" size={20} color={colors.foreground} />
+            </Pressable>
+          </View>
         </View>
-        <Pressable
-          style={[styles.notifBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
-          onPress={() => router.push("/settings/notifications")}
-        >
-          <Feather name="bell" size={20} color={colors.foreground} />
-          <View style={[styles.notifDot, { backgroundColor: colors.secondary }]} />
-        </Pressable>
       </View>
+
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={{ paddingTop: 16, paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
+        showsVerticalScrollIndicator={false}
+      >
 
       {/* Stats Banner */}
       <View style={[styles.statsBanner, { backgroundColor: colors.primary }]}>
@@ -137,32 +146,212 @@ export default function HomeScreen() {
         </View>
       )}
 
-      {/* Featured Courses */}
+      {/* Popular Robotics Courses */}
       <View style={styles.section}>
-        <SectionHeader title="Featured Courses" onSeeAll={() => router.push("/(tabs)/courses")} />
-        <View style={styles.carouselWrapper}>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.featuredCoursesContent}
-            snapToInterval={276}
-            decelerationRate="fast"
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Popular Robotics Courses</Text>
+        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={276}
+          decelerationRate="fast"
+        >
+          {COURSES.filter(course => course.category === "Robotics").slice(0, 5).map((course) => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+          <Pressable 
+            style={[styles.seeAllCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push({
+              pathname: "/(tabs)/courses",
+              params: { category: "Robotics" }
+            })}
           >
-            {COURSES.map((course) => (
-              <CourseCard key={course.id} course={course} />
-            ))}
-          </ScrollView>
-          {Platform.OS === 'web' && (
-            <View style={[styles.fadeGradient, { 
-              background: `linear-gradient(to right, transparent 0%, ${colors.background} 100%)` 
-            }]} pointerEvents="none" />
-          )}
+            <Feather name="grid" size={32} color={colors.primary} />
+            <Text style={[styles.seeAllText, { color: colors.foreground }]}>See All Courses</Text>
+            <Feather name="arrow-right" size={20} color={colors.primary} />
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      {/* Popular Electronics Courses */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Popular Electronics Courses</Text>
+        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={276}
+          decelerationRate="fast"
+        >
+          {COURSES.filter(course => course.category === "Electronics").slice(0, 5).map((course) => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+          <Pressable 
+            style={[styles.seeAllCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push({
+              pathname: "/(tabs)/courses",
+              params: { category: "Electronics" }
+            })}
+          >
+            <Feather name="grid" size={32} color={colors.primary} />
+            <Text style={[styles.seeAllText, { color: colors.foreground }]}>See All Courses</Text>
+            <Feather name="arrow-right" size={20} color={colors.primary} />
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      {/* Categories */}
+      <View style={styles.section}>
+        <SectionHeader title="Browse by Category" onSeeAll={() => router.push("/(tabs)/courses")} />
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.categoriesScrollContent}
+        >
+          <View style={styles.categoriesContainer}>
+            <View style={styles.categoriesRow}>
+              {[
+                { name: "Robotics", icon: "cpu" },
+                { name: "Electronics", icon: "zap" },
+                { name: "IoT", icon: "wifi" },
+                { name: "Embedded Systems", icon: "box" },
+              ].map((category) => (
+                <Pressable
+                  key={category.name}
+                  style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => router.push({
+                    pathname: "/(tabs)/courses",
+                    params: { category: category.name }
+                  })}
+                >
+                  <Feather name={category.icon as any} size={18} color={colors.primary} />
+                  <Text style={[styles.categoryText, { color: colors.foreground }]}>
+                    {category.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+            <View style={styles.categoriesRow}>
+              {[
+                { name: "Arduino & Projects", icon: "tool" },
+                { name: "AI + Robotics", icon: "activity" },
+                { name: "Drone Technology", icon: "navigation" },
+                { name: "Industry 4.0", icon: "settings" },
+              ].map((category) => (
+                <Pressable
+                  key={category.name}
+                  style={[styles.categoryCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+                  onPress={() => router.push({
+                    pathname: "/(tabs)/courses",
+                    params: { category: category.name }
+                  })}
+                >
+                  <Feather name={category.icon as any} size={18} color={colors.primary} />
+                  <Text style={[styles.categoryText, { color: colors.foreground }]}>
+                    {category.name}
+                  </Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+        </ScrollView>
+      </View>
+
+      {/* Popular IoT Courses */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Popular IoT Courses</Text>
+        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={276}
+          decelerationRate="fast"
+        >
+          {COURSES.filter(course => course.category === "IoT").slice(0, 5).map((course) => (
+            <CourseCard key={course.id} course={course} />
+          ))}
+          <Pressable 
+            style={[styles.seeAllCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push({
+              pathname: "/(tabs)/courses",
+              params: { category: "IoT" }
+            })}
+          >
+            <Feather name="grid" size={32} color={colors.primary} />
+            <Text style={[styles.seeAllText, { color: colors.foreground }]}>See All Courses</Text>
+            <Feather name="arrow-right" size={20} color={colors.primary} />
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      {/* Ecosystem of Edodwaja */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ecosystem of Edodwaja</Text>
+        </View>
+        <View style={[styles.ecosystemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <View style={styles.ecosystemHeader}>
+            <Feather name="package" size={28} color={colors.primary} />
+            <Text style={[styles.ecosystemTitle, { color: colors.foreground }]}>Our Partners & Brands</Text>
+          </View>
+          <Text style={[styles.ecosystemDescription, { color: colors.mutedForeground }]}>
+            Discover the brands and partners that make up the Edodwaja ecosystem
+          </Text>
+          <View style={styles.brandsContainer}>
+            {/* Brand logos will be added here */}
+            <View style={[styles.brandPlaceholder, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="image" size={24} color={colors.mutedForeground} />
+            </View>
+            <View style={[styles.brandPlaceholder, { backgroundColor: colors.muted, borderColor: colors.border }]}>
+              <Feather name="image" size={24} color={colors.mutedForeground} />
+            </View>
+          </View>
         </View>
       </View>
 
-      {/* Featured Products */}
+      {/* Trending Courses */}
       <View style={styles.section}>
-        <SectionHeader title="Shop & Learn" onSeeAll={() => router.push("/(tabs)/store")} />
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Trending Courses</Text>
+        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.carouselContent}
+          snapToInterval={276}
+          decelerationRate="fast"
+        >
+          {[
+            COURSES.find(c => c.category === "Robotics"),
+            COURSES.find(c => c.category === "Electronics"),
+            COURSES.find(c => c.category === "IoT"),
+            COURSES.find(c => c.category === "Embedded Systems"),
+            COURSES.find(c => c.category === "Arduino & Projects"),
+          ].filter(Boolean).map((course) => (
+            <CourseCard key={course!.id} course={course!} />
+          ))}
+          <Pressable 
+            style={[styles.seeAllCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push("/(tabs)/courses")}
+          >
+            <Feather name="grid" size={32} color={colors.primary} />
+            <Text style={[styles.seeAllText, { color: colors.foreground }]}>See All Courses</Text>
+            <Feather name="arrow-right" size={20} color={colors.primary} />
+          </Pressable>
+        </ScrollView>
+      </View>
+
+      {/* Popular Kits */}
+      <View style={styles.section}>
+        <View style={styles.sectionTitleContainer}>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Popular Kits</Text>
+        </View>
         <ScrollView 
           horizontal 
           showsHorizontalScrollIndicator={false}
@@ -170,43 +359,44 @@ export default function HomeScreen() {
           snapToInterval={200}
           decelerationRate="fast"
         >
-          {PRODUCTS.map((p) => (
-            <ProductCard key={p.id} product={p} />
+          {PRODUCTS.filter(p => p.category === "physical").slice(0, 5).map((product) => (
+            <ProductCard key={product.id} product={product} />
           ))}
+          <Pressable 
+            style={[styles.seeAllKitsCard, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push("/(tabs)/store")}
+          >
+            <Ionicons name="cart-outline" size={32} color={colors.primary} />
+            <Text style={[styles.seeAllText, { color: colors.foreground }]}>See All Kits</Text>
+            <Feather name="arrow-right" size={20} color={colors.primary} />
+          </Pressable>
         </ScrollView>
       </View>
-
-      {/* Latest News */}
-      <View style={styles.section}>
-        <SectionHeader title="Latest News" onSeeAll={() => router.push("/(tabs)/news")} />
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.carouselContent}
-          snapToInterval={316}
-          decelerationRate="fast"
-        >
-          {NEWS_ITEMS.slice(0, 3).map((item) => (
-            <NewsCard key={item.id} item={item} featured />
-          ))}
-        </ScrollView>
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
+  fixedHeader: {
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+  },
+  scrollView: { flex: 1 },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 20,
-    marginBottom: 20,
   },
   greeting: { fontSize: 14 },
   userName: { fontSize: 22, fontWeight: "800" },
-  notifBtn: {
+  headerButtons: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  iconBtn: {
     width: 44,
     height: 44,
     borderRadius: 14,
@@ -246,8 +436,16 @@ const styles = StyleSheet.create({
   emptyStateSubtitle: { fontSize: 13, fontWeight: "500", color: "rgba(255,255,255,0.85)", textAlign: "center" },
   streakSection: { marginHorizontal: 20, marginBottom: 28 },
   section: { marginBottom: 32 },
+  sectionTitleContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
   carouselWrapper: { position: "relative" },
-  carouselContent: { paddingLeft: 20, paddingRight: 180 },
+  carouselContent: { paddingLeft: 20, paddingRight: 20 },
   featuredCoursesContent: { paddingLeft: 20, paddingRight: 100 },
   fadeGradient: {
     position: "absolute",
@@ -256,5 +454,87 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: 120,
     pointerEvents: "none",
+  },
+  seeAllCard: {
+    width: 260,
+    height: 240,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
+  },
+  seeAllText: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  categoriesScrollContent: {
+    paddingLeft: 20,
+    paddingRight: 20,
+  },
+  categoriesContainer: {
+    gap: 10,
+  },
+  categoriesRow: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  categoryCard: {
+    borderRadius: 20,
+    borderWidth: 1,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  categoryText: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  ecosystemCard: {
+    marginHorizontal: 20,
+    borderRadius: 20,
+    borderWidth: 1,
+    padding: 24,
+  },
+  ecosystemHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    marginBottom: 12,
+  },
+  ecosystemTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+  },
+  ecosystemDescription: {
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  brandsContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  brandPlaceholder: {
+    width: 100,
+    height: 80,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  seeAllKitsCard: {
+    width: 180,
+    height: 240,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 12,
   },
 });

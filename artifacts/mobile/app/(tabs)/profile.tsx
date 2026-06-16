@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
@@ -21,6 +21,7 @@ interface MenuItem {
   label: string;
   onPress: () => void;
   danger?: boolean;
+  iconLib?: "feather" | "ionicons";
 }
 
 export default function ProfileScreen() {
@@ -38,18 +39,53 @@ export default function ProfileScreen() {
       : 0;
 
   function handleLogout() {
-    Alert.alert("Sign Out", "Are you sure you want to sign out?", [
-      { text: "Cancel", style: "cancel" },
-      {
-        text: "Sign Out",
-        style: "destructive",
-        onPress: async () => {
-          await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-          await logout();
-          router.replace("/(auth)/login");
-        },
-      },
-    ]);
+    console.log('Logout button clicked');
+    
+    if (Platform.OS === 'web') {
+      // Use native browser confirm on web
+      const confirmed = window.confirm('Are you sure you want to sign out?');
+      console.log('Web confirm result:', confirmed);
+      
+      if (confirmed) {
+        console.log('Starting logout...');
+        logout().then(() => {
+          console.log('Logout successful, redirecting...');
+          window.location.href = '/';
+        }).catch((error) => {
+          console.error('Logout error:', error);
+          alert('Failed to sign out. Please try again.');
+        });
+      }
+    } else {
+      // Use React Native Alert on mobile
+      Alert.alert(
+        "Sign Out", 
+        "Are you sure you want to sign out?", 
+        [
+          { 
+            text: "Cancel", 
+            style: "cancel",
+            onPress: () => console.log('Logout cancelled')
+          },
+          {
+            text: "Sign Out",
+            style: "destructive",
+            onPress: async () => {
+              try {
+                console.log('Logout confirmed, starting logout...');
+                await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                await logout();
+                console.log('Logout completed, redirecting...');
+                router.replace("/(auth)/login");
+              } catch (error) {
+                console.error('Logout error:', error);
+              }
+            },
+          },
+        ],
+        { cancelable: false }
+      );
+    }
   }
 
   const sections: { title: string; items: MenuItem[] }[] = [
@@ -57,8 +93,8 @@ export default function ProfileScreen() {
       title: "Learning",
       items: [
         { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
-        { icon: "shopping-bag", label: "Store", onPress: () => router.push("/(tabs)/store") },
-        { icon: "shopping-cart", label: "My Orders", onPress: () => router.push("/store/orders") },
+        { icon: "cart-outline", label: "Store", onPress: () => router.push("/(tabs)/store"), iconLib: "ionicons" as const },
+        { icon: "cart-outline", label: "My Orders", onPress: () => router.push("/store/orders"), iconLib: "ionicons" as const },
         { 
           icon: "award", 
           label: "Achievements", 
@@ -163,7 +199,11 @@ export default function ProfileScreen() {
                   onPress={item.onPress}
                 >
                   <View style={[styles.menuIconBox, { backgroundColor: item.danger ? "#FEE2E2" : colors.accent }]}>
-                    <Feather name={item.icon as any} size={16} color={item.danger ? "#DC2626" : colors.primary} />
+                    {item.iconLib === "ionicons" ? (
+                      <Ionicons name={item.icon as any} size={16} color={item.danger ? "#DC2626" : colors.primary} />
+                    ) : (
+                      <Feather name={item.icon as any} size={16} color={item.danger ? "#DC2626" : colors.primary} />
+                    )}
                   </View>
                   <Text style={[styles.menuLabel, { color: item.danger ? "#DC2626" : colors.foreground }]}>
                     {item.label}

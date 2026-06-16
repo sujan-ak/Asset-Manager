@@ -2,10 +2,18 @@ import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
-import { supabase, Profile } from '@/lib/supabase';
+import { Profile } from '@/types/auth';
+import * as authService from '@/services/authService';
 
 // Configure WebBrowser for OAuth
 WebBrowser.maybeCompleteAuthSession();
+
+const devLog = (...args: any[]) => {
+  if (__DEV__) console.log(...args);
+};
+const devError = (...args: any[]) => {
+  if (__DEV__) console.error(...args);
+};
 
 export interface User {
   id: string;
@@ -44,7 +52,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    authService.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (session?.user) {
         loadUserProfile(session.user);
@@ -56,8 +64,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      console.log('[Auth] State changed:', _event);
+    } = authService.onAuthStateChange((_event, session) => {
+      devLog('[Auth] State changed:', _event);
       setSession(session);
 
       if (session?.user) {
@@ -71,7 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Handle deep links for OAuth callback
     const handleDeepLink = (event: { url: string }) => {
       const url = event.url;
-      console.log('[Auth] Deep link received:', url);
+      devLog('[Auth] Deep link received:', url);
       
       // Supabase will automatically handle the OAuth callback
       // The onAuthStateChange listener will fire when complete
@@ -87,27 +95,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   async function loadUserProfile(supabaseUser: SupabaseUser) {
-    console.log('[Auth] Loading profile for user:', supabaseUser.id);
+    devLog('[Auth] Loading profile for user:', supabaseUser.id);
     try {
-      const { data: profile, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', supabaseUser.id)
-        .maybeSingle();
+      const { data: profile, error } = await authService.getProfile(supabaseUser.id);
 
       if (error) {
-        console.error('[Auth] Failed to load profile:', error.message, error.code);
+        devError('[Auth] Failed to load profile:', error.message, error.code);
         setIsLoading(false);
         return;
       }
 
       if (!profile) {
-        console.log('[Auth] Profile not found, creating new profile...');
+        devLog('[Auth] Profile not found, creating new profile...');
         await createUserProfile(supabaseUser);
         return;
       }
 
-      console.log('[Auth] Profile loaded successfully');
+      devLog('[Auth] Profile loaded successfully');
       setUser({
         id: profile.id,
         email: profile.email,
@@ -122,14 +126,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }),
       });
     } catch (error: any) {
-      console.error('[Auth] Error loading profile:', error.message);
+      devError('[Auth] Error loading profile:', error.message);
     } finally {
       setIsLoading(false);
     }
   }
 
   async function createUserProfile(supabaseUser: SupabaseUser) {
-    console.log('[Auth] Creating profile for user:', supabaseUser.id);
+    devLog('[Auth] Creating profile for user:', supabaseUser.id);
     try {
       const profileData = {
         id: supabaseUser.id,
@@ -138,20 +142,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         role: 'student' as const,
       };
 
-      const { data, error } = await supabase
-        .from('profiles')
-        .upsert(profileData, { onConflict: 'id' })
-        .select()
-        .maybeSingle();
+      const { data, error } = await authService.createProfile(profileData);
 
       if (error) {
-        console.error('[Auth] Profile creation failed:', error.message, error.code);
+        devError('[Auth] Profile creation failed:', error.message, error.code);
         setIsLoading(false);
         return;
       }
 
       if (data) {
-        console.log('[Auth] Profile created successfully');
+        devLog('[Auth] Profile created successfully');
         setUser({
           id: data.id,
           email: data.email,
@@ -167,7 +167,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         });
       }
     } catch (error: any) {
-      console.error('[Auth] Error creating profile:', error.message);
+      devError('[Auth] Error creating profile:', error.message);
     } finally {
       setIsLoading(false);
     }
@@ -175,34 +175,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function loginWithGoogle(): Promise<{ success: boolean; error?: string }> {
     try {
-      console.log('[Auth] Starting Google OAuth flow...');
+      devLog('[Auth] Starting Google OAuth flow...');
       setIsLoading(true);
 
       // Create redirect URL for OAuth callback
       const redirectTo = Linking.createURL('/auth/callback');
-      console.log('[Auth] OAuth redirect URL:', redirectTo);
+      devLog('[Auth] OAuth redirect URL:', redirectTo);
 
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectTo,
-          skipBrowserRedirect: true, // We'll handle the browser opening
-        },
-      });
+      const { data, error } = await authService.signInWithGoogle(redirectTo);
 
       if (error) {
-        console.error('[Auth] Google OAuth error:', error.message);
+        devError('[Auth] Google OAuth error:', error.message);
         setIsLoading(false);
         return { success: false, error: error.message };
       }
 
       if (!data?.url) {
-        console.error('[Auth] No OAuth URL returned');
+        devError('[Auth] No OAuth URL returned');
         setIsLoading(false);
         return { success: false, error: 'Failed to initiate Google sign-in' };
       }
 
-      console.log('[Auth] Opening OAuth URL in browser...');
+      devLog('[Auth] Opening OAuth URL in browser...');
       
       // Open OAuth URL in browser
       const result = await WebBrowser.openAuthSessionAsync(
@@ -210,7 +204,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         redirectTo
       );
 
-      console.log('[Auth] Browser session result:', result.type);
+      devLog('[Auth] Browser session result:', result.type);
 
       if (result.type === 'success') {
         // Extract tokens from URL and create session
@@ -222,23 +216,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (access_token && refresh_token) {
           // Set the session manually
-          const { data: sessionData, error: sessionError } = await supabase.auth.setSession({
+          const { data: sessionData, error: sessionError } = await authService.setSession(
             access_token,
-            refresh_token,
-          });
+            refresh_token
+          );
 
           if (sessionError) {
-            console.error('[Auth] Failed to set session:', sessionError.message);
+            devError('[Auth] Failed to set session:', sessionError.message);
             setIsLoading(false);
             return { success: false, error: sessionError.message };
           }
 
-          console.log('[Auth] Google OAuth successful');
+          devLog('[Auth] Google OAuth successful');
           // The onAuthStateChange will handle loading the profile
           return { success: true };
         }
       } else if (result.type === 'cancel') {
-        console.log('[Auth] User cancelled OAuth');
+        devLog('[Auth] User cancelled OAuth');
         setIsLoading(false);
         return { success: false, error: 'Sign-in cancelled' };
       }
@@ -246,7 +240,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return { success: false, error: 'Authentication failed' };
     } catch (error: any) {
-      console.error('[Auth] Google OAuth exception:', error.message);
+      devError('[Auth] Google OAuth exception:', error.message);
       setIsLoading(false);
       return { success: false, error: error.message || 'An unexpected error occurred' };
     }
@@ -260,18 +254,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
 
-      const { data, error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name,
-          },
-        },
-      });
+      const { data, error } = await authService.signUp(email, password, { name });
 
       if (error) {
-        console.error('[Auth] Registration error:', error);
+        devError('[Auth] Registration error:', error);
         return { success: false, error: error.message };
       }
 
@@ -282,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { success: false, error: 'Registration failed' };
     } catch (error: any) {
-      console.error('[Auth] Registration exception:', error);
+      devError('[Auth] Registration exception:', error);
       return { success: false, error: error.message || 'An unexpected error occurred' };
     } finally {
       setIsLoading(false);
@@ -296,13 +282,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       setIsLoading(true);
 
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
+      const { data, error } = await authService.signInWithPassword(email, password);
 
       if (error) {
-        console.error('[Auth] Login error:', error);
+        devError('[Auth] Login error:', error);
         return { success: false, error: error.message };
       }
 
@@ -312,7 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       return { success: false, error: 'Login failed' };
     } catch (error: any) {
-      console.error('[Auth] Login exception:', error);
+      devError('[Auth] Login exception:', error);
       return { success: false, error: error.message || 'An unexpected error occurred' };
     } finally {
       setIsLoading(false);
@@ -321,17 +304,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function logout() {
     try {
+      devLog('[Auth] Logging out...');
       setIsLoading(true);
-      const { error } = await supabase.auth.signOut();
+      
+      const { error } = await authService.signOut();
 
       if (error) {
-        console.error('[Auth] Logout error:', error);
+        devError('[Auth] Logout error:', error);
+        throw error;
       }
 
+      devLog('[Auth] Logout successful');
       setUser(null);
       setSession(null);
     } catch (error) {
-      console.error('[Auth] Logout exception:', error);
+      devError('[Auth] Logout exception:', error);
+      // Clear state even if signOut fails
+      setUser(null);
+      setSession(null);
     } finally {
       setIsLoading(false);
     }
@@ -345,43 +335,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
 
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          full_name: updates.name,
-          grade: updates.grade,
-          school: updates.school,
-          avatar_url: updates.avatar,
-        })
-        .eq('id', user.id);
+      const profileUpdates: any = {};
+      
+      if (updates.name !== undefined) profileUpdates.full_name = updates.name;
+      if (updates.grade !== undefined) profileUpdates.grade = updates.grade;
+      if (updates.school !== undefined) profileUpdates.school = updates.school;
+      if (updates.avatar !== undefined) profileUpdates.avatar_url = updates.avatar;
+
+      const { error } = await authService.updateProfile(user.id, profileUpdates);
 
       if (error) {
-        console.error('[Auth] Update profile error:', error);
+        devError('[Auth] Update profile error:', error);
         return { success: false, error: error.message };
       }
 
-      setUser({ ...user, ...updates });
+      // Update local user state with the changes
+      const updatedUser = { ...user };
+      if (updates.name !== undefined) updatedUser.name = updates.name;
+      if (updates.grade !== undefined) updatedUser.grade = updates.grade;
+      if (updates.school !== undefined) updatedUser.school = updates.school;
+      if (updates.avatar !== undefined) updatedUser.avatar = updates.avatar;
+      
+      setUser(updatedUser);
+      devLog('[Auth] Profile updated successfully:', updatedUser);
       return { success: true };
     } catch (error: any) {
-      console.error('[Auth] Update profile exception:', error);
+      devError('[Auth] Update profile exception:', error);
       return { success: false, error: error.message || 'Failed to update profile' };
     }
   }
 
   async function resetPassword(email: string): Promise<{ success: boolean; error?: string }> {
     try {
-      const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: 'edodwaja://reset-password',
-      });
+      const { error } = await authService.resetPasswordForEmail(
+        email,
+        'edodwaja://reset-password'
+      );
 
       if (error) {
-        console.error('[Auth] Password reset error:', error);
+        devError('[Auth] Password reset error:', error);
         return { success: false, error: error.message };
       }
 
       return { success: true };
     } catch (error: any) {
-      console.error('[Auth] Password reset exception:', error);
+      devError('[Auth] Password reset exception:', error);
       return { success: false, error: error.message || 'Failed to send reset email' };
     }
   }

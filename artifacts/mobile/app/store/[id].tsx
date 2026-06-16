@@ -57,7 +57,13 @@ export default function ProductDetailScreen() {
           <View style={styles.overlay} />
           <Pressable
             style={[styles.backCircle, { top: topPad + 8 }]}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/store");
+              }
+            }}
           >
             <Feather name="arrow-left" size={20} color="#FFF" />
           </Pressable>

@@ -1,5 +1,7 @@
 import React, { useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NewsCard } from "@/components/NewsCard";
 import { SearchBar } from "@/components/SearchBar";
@@ -22,7 +24,15 @@ export default function NewsScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topPad + 12 }]}>
-        <Text style={[styles.pageTitle, { color: colors.foreground }]}>News</Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.pageTitle, { color: colors.foreground }]}>News</Text>
+          <Pressable
+            style={[styles.cartBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+            onPress={() => router.push("/(tabs)/store")}
+          >
+            <Ionicons name="cart-outline" size={20} color={colors.foreground} />
+          </Pressable>
+        </View>
         <View style={{ paddingHorizontal: 20, marginTop: 8 }}>
           <SearchBar value={search} onChangeText={setSearch} placeholder="Search news..." />
         </View>
@@ -50,7 +60,22 @@ export default function NewsScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1 },
   topBar: { paddingBottom: 12 },
-  pageTitle: { fontSize: 26, fontWeight: "800", paddingHorizontal: 20, marginBottom: 4 },
+  titleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 4,
+  },
+  pageTitle: { fontSize: 26, fontWeight: "800" },
+  cartBtn: {
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+  },
   list: { paddingHorizontal: 20, paddingTop: 16 },
   empty: { alignItems: "center", paddingTop: 60 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },

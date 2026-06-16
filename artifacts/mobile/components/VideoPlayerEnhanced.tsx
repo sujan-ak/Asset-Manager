@@ -17,6 +17,14 @@ import {
 import Slider from "@react-native-community/slider";
 import { useColors } from "@/hooks/useColors";
 import { PlaybackSpeedSelector } from "./PlaybackSpeedSelector";
+import { router } from "expo-router";
+
+const devLog = (...args: any[]) => {
+  if (__DEV__) console.log(...args);
+};
+const devError = (...args: any[]) => {
+  if (__DEV__) console.error(...args);
+};
 
 interface VideoPlayerProps {
   videoUrl: string;
@@ -69,18 +77,32 @@ export function VideoPlayerEnhanced({
     return () => subscription.remove();
   }, []);
 
-  // Debug video URL on mount
+  // FIX: Lock to portrait on mount, unlock on unmount
   useEffect(() => {
-    console.log("[VideoPlayer] Initializing with URL:", videoUrl);
-    console.log("[VideoPlayer] Initial time:", initialTime);
+    if (Platform.OS !== "web") {
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT_UP
+      ).catch(() => {});
+    }
+    return () => {
+      if (Platform.OS !== "web") {
+        ScreenOrientation.unlockAsync().catch(() => {});
+      }
+    };
   }, []);
 
-  // Auto-hide controls after 3 seconds
+  // Debug video URL on mount
+  useEffect(() => {
+    devLog("[VideoPlayer] Initializing with URL:", videoUrl);
+    devLog("[VideoPlayer] Initial time:", initialTime);
+  }, []);
+
+  // Auto-hide controls after delay when playing
   const showControlsWithTimer = () => {
     setShowControls(true);
     Animated.timing(overlayOpacity, {
       toValue: 1,
-      duration: 200,
+      duration: 100,
       useNativeDriver: true,
     }).start();
 
@@ -88,17 +110,17 @@ export function VideoPlayerEnhanced({
       clearTimeout(hideTimer.current);
     }
 
-    hideTimer.current = setTimeout(() => {
-      if (isPlaying) {
+    if (isPlaying) {
+      hideTimer.current = setTimeout(() => {
         Animated.timing(overlayOpacity, {
           toValue: 0,
-          duration: 300,
+          duration: 100,
           useNativeDriver: true,
         }).start(() => {
           setShowControls(false);
         });
-      }
-    }, 3000);
+      }, 3000);
+    }
   };
 
   useEffect(() => {
@@ -120,7 +142,7 @@ export function VideoPlayerEnhanced({
 
       if (status !== lastStatus) {
         if (status === "readyToPlay" || status === "idle") {
-          console.log(
+          devLog(
             "[VideoPlayer] Video ready - Status:",
             status,
             "Duration:",
@@ -128,7 +150,7 @@ export function VideoPlayerEnhanced({
           );
         }
         if (status === "error") {
-          console.error("[VideoPlayer] Video error detected");
+          devError("[VideoPlayer] Video error detected");
         }
         setLastStatus(status);
       }
@@ -178,7 +200,7 @@ export function VideoPlayerEnhanced({
       );
       if (isCurrentlyFullscreen !== isFullscreen) {
         setIsFullscreen(isCurrentlyFullscreen);
-        console.log(
+        devLog(
           "[VideoPlayer] Fullscreen state changed:",
           isCurrentlyFullscreen
         );
@@ -220,7 +242,7 @@ export function VideoPlayerEnhanced({
   const skipForward = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!duration || duration <= 0 || !isFinite(duration)) return;
-    const newTime = Math.min(duration, currentTime + 10);
+    const newTime = Math.min(duration, currentTime + 15);
     if (isFinite(newTime)) {
       player.currentTime = newTime;
     }
@@ -229,7 +251,7 @@ export function VideoPlayerEnhanced({
 
   const skipBackward = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newTime = Math.max(0, currentTime - 10);
+    const newTime = Math.max(0, currentTime - 15);
     if (isFinite(newTime)) {
       player.currentTime = newTime;
     }
@@ -241,15 +263,15 @@ export function VideoPlayerEnhanced({
       player.playbackRate = speed;
       setPlaybackSpeed(speed);
       showControlsWithTimer();
-      console.log("[VideoPlayer] Playback speed changed to:", speed);
+      devLog("[VideoPlayer] Playback speed changed to:", speed);
     } catch (error) {
-      console.error("[VideoPlayer] Failed to change playback speed:", error);
+      devError("[VideoPlayer] Failed to change playback speed:", error);
     }
   };
 
   const handleSliderChange = (value: number) => {
     if (!duration || duration <= 0 || !isFinite(duration)) {
-      console.warn("[VideoPlayer] Cannot seek - invalid duration:", duration);
+      devLog("[VideoPlayer] Cannot seek - invalid duration:", duration);
       return;
     }
 
@@ -257,7 +279,7 @@ export function VideoPlayerEnhanced({
     if (isFinite(newTime) && newTime >= 0) {
       player.currentTime = newTime;
     } else {
-      console.warn("[VideoPlayer] Invalid seek time calculated:", newTime);
+      devLog("[VideoPlayer] Invalid seek time calculated:", newTime);
     }
   };
 
@@ -303,17 +325,15 @@ export function VideoPlayerEnhanced({
           await ScreenOrientation.lockAsync(
             ScreenOrientation.OrientationLock.LANDSCAPE
           );
-          console.log("[VideoPlayer] Entered fullscreen - landscape mode");
+          devLog("[VideoPlayer] Entered fullscreen - landscape mode");
         } else {
-          await ScreenOrientation.lockAsync(
-            ScreenOrientation.OrientationLock.PORTRAIT_UP
-          );
+          await ScreenOrientation.unlockAsync();
           setIsFullscreen(false);
-          console.log("[VideoPlayer] Exited fullscreen - portrait mode");
+          devLog("[VideoPlayer] Exited fullscreen - orientation unlocked");
         }
       }
     } catch (error) {
-      console.error("[VideoPlayer] Fullscreen toggle failed:", error);
+      devError("[VideoPlayer] Fullscreen toggle failed:", error);
       setIsFullscreen(!isFullscreen);
     }
     showControlsWithTimer();
@@ -336,15 +356,7 @@ export function VideoPlayerEnhanced({
             style={[styles.loadingContainer, { backgroundColor: colors.card }]}
           >
             <Text style={[styles.loadingText, { color: colors.foreground }]}>
-              Loading Lesson...
-            </Text>
-            <Text
-              style={[
-                styles.debugText,
-                { color: colors.mutedForeground, marginTop: 4 },
-              ]}
-            >
-              {player?.status || "initializing"}
+              Please wait...
             </Text>
           </View>
         </View>
@@ -357,10 +369,18 @@ export function VideoPlayerEnhanced({
       >
         {/* Top Bar */}
         <View style={styles.topBar}>
+          <Pressable
+            onPress={() => router.back()}
+            style={styles.iconButton}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+          >
+            <Feather name="chevron-down" size={24} color="#FFF" />
+          </Pressable>
           <View style={{ flex: 1 }} />
           <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
             <Feather
-              name={isFullscreen ? "minimize" : "maximize"}
+              name={isFullscreen ? "minimize-2" : "maximize-2"}
               size={20}
               color="#FFF"
             />
@@ -371,26 +391,24 @@ export function VideoPlayerEnhanced({
         <View style={styles.centerControls}>
           <Pressable onPress={skipBackward} style={styles.skipButton}>
             <Feather name="rotate-ccw" size={24} color="#FFF" />
-            <Text style={styles.skipLabel}>10s</Text>
+            <Text style={styles.skipLabel}>15s</Text>
           </Pressable>
 
           <Pressable
             onPress={togglePlayPause}
-            style={[
-              styles.playButton,
-              { backgroundColor: "rgba(0,0,0,0.6)" },
-            ]}
+            style={styles.playButton}
           >
             <Feather
               name={isPlaying ? "pause" : "play"}
-              size={32}
+              size={40}
               color="#FFF"
+              style={{ marginLeft: isPlaying ? 0 : 4 }}
             />
           </Pressable>
 
           <Pressable onPress={skipForward} style={styles.skipButton}>
             <Feather name="rotate-cw" size={24} color="#FFF" />
-            <Text style={styles.skipLabel}>10s</Text>
+            <Text style={styles.skipLabel}>15s</Text>
           </Pressable>
         </View>
 
@@ -405,9 +423,9 @@ export function VideoPlayerEnhanced({
               value={currentTime}
               minimumValue={0}
               maximumValue={duration || 1}
-              minimumTrackTintColor={colors.primary}
+              minimumTrackTintColor="#FFFFFF"
               maximumTrackTintColor="rgba(255,255,255,0.3)"
-              thumbTintColor={colors.primary}
+              thumbTintColor="#FFFFFF"
               onValueChange={handleSliderChange}
               onSlidingStart={handleSliderStart}
               onSlidingComplete={handleSliderComplete}
@@ -422,14 +440,6 @@ export function VideoPlayerEnhanced({
               currentSpeed={playbackSpeed}
               onSpeedChange={handleSpeedChange}
             />
-
-            <Pressable onPress={togglePlayPause} style={styles.iconButton}>
-              <Feather
-                name={isPlaying ? "pause" : "play"}
-                size={20}
-                color="#FFF"
-              />
-            </Pressable>
           </View>
         </View>
       </Animated.View>
@@ -498,10 +508,12 @@ const styles = StyleSheet.create({
     aspectRatio: 16 / 9,
     backgroundColor: "#000",
     position: "relative",
+    overflow: "visible",
   },
   videoContainer: {
     flex: 1,
     position: "relative",
+    overflow: "visible",
   },
   video: {
     width: "100%",
@@ -544,10 +556,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "600",
   },
-  debugText: {
-    fontSize: 11,
-    textAlign: "center",
-  },
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
@@ -555,7 +563,8 @@ const styles = StyleSheet.create({
   },
   topBar: {
     flexDirection: "row",
-    justifyContent: "flex-end",
+    justifyContent: "space-between",
+    alignItems: "center",
     padding: 12,
   },
   centerControls: {
@@ -566,13 +575,12 @@ const styles = StyleSheet.create({
     gap: 40,
   },
   playButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
+    width: 60,
+    height: 60,
+    backgroundColor: "transparent",
+    borderWidth: 0,
     justifyContent: "center",
     alignItems: "center",
-    borderWidth: 2,
-    borderColor: "rgba(255,255,255,0.3)",
   },
   skipButton: {
     alignItems: "center",

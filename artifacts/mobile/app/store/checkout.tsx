@@ -29,6 +29,8 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
+  // TODO: Integrate real payment gateway (Razorpay recommended for India)
+  // before production release. Current flow is DEMO ONLY.
   async function handleOrder() {
     if (!name || !address || !city || !phone) {
       Alert.alert("Incomplete", "Please fill in all fields.");
@@ -39,7 +41,7 @@ export default function CheckoutScreen() {
     setLoading(false);
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     clearCart();
-    Alert.alert("Order Placed!", "Your order has been successfully placed. You'll receive a confirmation shortly.", [
+    Alert.alert("Demo Order Placed!", "This is a test order — no payment was charged.", [
       { text: "OK", onPress: () => router.replace("/(tabs)") },
     ]);
   }
@@ -125,6 +127,10 @@ export default function CheckoutScreen() {
 
           {/* Payment method */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Payment Method</Text>
+          <View style={[styles.demoModeCard, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B" }]}>
+            <Feather name="alert-triangle" size={18} color="#92400E" />
+            <Text style={[styles.demoModeText, { color: "#92400E" }]}>Demo Mode — No real payment will be processed</Text>
+          </View>
           <View style={[styles.paymentCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
             <Feather name="credit-card" size={20} color={colors.primary} />
             <Text style={[styles.paymentText, { color: colors.primary }]}>UPI / Debit / Credit Card</Text>
@@ -148,7 +154,7 @@ export default function CheckoutScreen() {
               <ActivityIndicator color="#FFF" />
             ) : (
               <>
-                <Text style={styles.orderBtnText}>Place Order · ₹{total}</Text>
+                <Text style={styles.orderBtnText}>Place Order (Demo) · ₹{total}</Text>
                 <Feather name="arrow-right" size={18} color="#FFF" />
               </>
             )}
@@ -187,6 +193,16 @@ const styles = StyleSheet.create({
   label: { fontSize: 14, fontWeight: "600" },
   inputWrapper: { borderRadius: 12, borderWidth: 1, paddingHorizontal: 14, paddingVertical: 12 },
   input: { fontSize: 15 },
+  demoModeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    padding: 12,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    marginBottom: 10,
+  },
+  demoModeText: { flex: 1, fontSize: 13, fontWeight: "600" },
   paymentCard: {
     flexDirection: "row",
     alignItems: "center",

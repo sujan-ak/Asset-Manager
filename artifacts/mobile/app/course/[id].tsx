@@ -38,7 +38,13 @@ export default function CourseDetailScreen() {
   if (!course) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, paddingTop: insets.top }]}>
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable onPress={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace("/(tabs)/courses");
+          }
+        }} style={styles.backBtn}>
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.errorText, { color: colors.foreground }]}>Course not found.</Text>
@@ -114,7 +120,13 @@ export default function CourseDetailScreen() {
           <View style={styles.overlay} />
           <Pressable
             style={[styles.backCircle, { top: (Platform.OS === "web" ? 67 : insets.top) + 8 }]}
-            onPress={() => router.back()}
+            onPress={() => {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace("/(tabs)/courses");
+              }
+            }}
           >
             <Feather name="arrow-left" size={20} color="#FFF" />
           </Pressable>

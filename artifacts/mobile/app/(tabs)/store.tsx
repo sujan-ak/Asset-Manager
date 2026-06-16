@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { ProductCard } from "@/components/ProductCard";
 import { SearchBar } from "@/components/SearchBar";
 import { SectionHeader } from "@/components/SectionHeader";
+import { ProductCardSkeleton } from "@/components/SkeletonLoader";
 import { useCart } from "@/context/CartContext";
 import { PRODUCTS, STORE_CATEGORIES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
@@ -25,6 +26,12 @@ export default function StoreScreen() {
   const { count } = useCart();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [isLoading, setIsLoading] = useState(true);
+
+  React.useEffect(() => {
+    const timer = setTimeout(() => setIsLoading(false), 800);
+    return () => clearTimeout(timer);
+  }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -97,7 +104,30 @@ export default function StoreScreen() {
         contentContainerStyle={{ paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {search || activeCategory !== "All" ? (
+        {isLoading ? (
+          <>
+            <View style={styles.section}>
+              <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <ProductCardSkeleton />
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContent}>
+                <ProductCardSkeleton />
+                <ProductCardSkeleton />
+                <ProductCardSkeleton />
+              </ScrollView>
+            </View>
+            <View style={styles.section}>
+              <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+                <ProductCardSkeleton />
+              </View>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContent}>
+                <ProductCardSkeleton />
+                <ProductCardSkeleton />
+                <ProductCardSkeleton />
+              </ScrollView>
+            </View>
+          </>
+        ) : search || activeCategory !== "All" ? (
           filtered.length === 0 ? (
             <View style={styles.emptyState}>
               <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
