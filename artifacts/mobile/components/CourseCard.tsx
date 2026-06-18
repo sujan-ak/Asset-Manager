@@ -1,10 +1,13 @@
 import { Feather, MaterialIcons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
-import { Dimensions, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import { Dimensions, Image, Pressable, StyleSheet, Text, View, ToastAndroid, Platform, Alert } from "react-native";
+import * as Haptics from "expo-haptics";
 import { Course } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useProgress } from "@/context/ProgressContext";
+import { useFavorites } from "@/context/FavoritesContext";
+import { FavoriteButton } from "./FavoriteButton";
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
@@ -19,9 +22,36 @@ interface CourseCardProps {
 export function CourseCard({ course, horizontal = false, compact = false }: CourseCardProps) {
   const colors = useColors();
   const { getCourseProgress } = useProgress();
+  const { isFavoriteCourse, toggleFavoriteCourse } = useFavorites();
   const courseProgress = getCourseProgress(course.id);
   const isEnrolled = !!courseProgress;
   const progress = courseProgress?.progress || 0;
+  const isFavorite = isFavoriteCourse(course.id);
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', message);
+    }
+  };
+
+  const handleFavoritePress = (e?: any) => {
+    if (e?.stopPropagation) {
+      e.stopPropagation();
+    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const wasAdded = !isFavorite;
+    toggleFavoriteCourse({
+      id: course.id,
+      title: course.title,
+      thumbnail: course.thumbnail,
+      category: course.category,
+      price: course.price,
+      isFree: course.isFree,
+    });
+    showToast(wasAdded ? 'Added to Favorites' : 'Removed from Favorites');
+  };
 
   const renderStars = (rating: number) => {
     const stars = [];
@@ -69,9 +99,16 @@ export function CourseCard({ course, horizontal = false, compact = false }: Cour
           <View style={[styles.categoryPill, { backgroundColor: colors.accent }]}>
             <Text style={[styles.categoryText, { color: colors.primary }]}>{course.category}</Text>
           </View>
-          <Text style={[styles.horizontalTitle, { color: colors.foreground }]} numberOfLines={2}>
-            {course.title}
-          </Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.horizontalTitle, { color: colors.foreground, flex: 1 }]} numberOfLines={2}>
+              {course.title}
+            </Text>
+            <FavoriteButton
+              isFavorite={isFavorite}
+              onPress={handleFavoritePress}
+              size={16}
+            />
+          </View>
           <Text style={[styles.instructor, { color: colors.mutedForeground }]}>{course.instructor}</Text>
           <View style={styles.ratingRow}>
             <View style={styles.starsContainer}>
@@ -122,9 +159,16 @@ export function CourseCard({ course, horizontal = false, compact = false }: Cour
         <View style={[styles.categoryPill, { backgroundColor: colors.accent }]}>
           <Text style={[styles.categoryText, { color: colors.primary }]}>{course.category}</Text>
         </View>
-        <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
-          {course.title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, { color: colors.foreground, flex: 1 }]} numberOfLines={2}>
+            {course.title}
+          </Text>
+          <FavoriteButton
+            isFavorite={isFavorite}
+            onPress={handleFavoritePress}
+            size={14}
+          />
+        </View>
         <Text style={[styles.instructor, { color: colors.mutedForeground }]}>{course.instructor}</Text>
         <View style={styles.ratingRow}>
           <View style={styles.starsContainer}>
@@ -192,6 +236,11 @@ const styles = StyleSheet.create({
     color: "#FFF",
     fontSize: 10,
     fontWeight: "700",
+  },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 6,
   },
   cardContent: {
     paddingTop: 10,

@@ -4,6 +4,7 @@ import { router } from "expo-router";
 import React from "react";
 import {
   Alert,
+  Image,
   Platform,
   Pressable,
   ScrollView,
@@ -93,6 +94,7 @@ export default function ProfileScreen() {
       title: "Learning",
       items: [
         { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
+        { icon: "heart", label: "Favorites & Watch Later", onPress: () => router.push("/favorites") },
         { icon: "cart-outline", label: "Store", onPress: () => router.push("/(tabs)/store"), iconLib: "ionicons" as const },
         { icon: "cart-outline", label: "My Orders", onPress: () => router.push("/store/orders"), iconLib: "ionicons" as const },
         { 
@@ -115,6 +117,8 @@ export default function ProfileScreen() {
         { icon: "user", label: "Edit Profile", onPress: () => router.push("/profile/edit") },
         { icon: "settings", label: "Settings", onPress: () => router.push("/settings") },
         { icon: "bell", label: "Notifications", onPress: () => router.push("/settings/notifications") },
+        { icon: "shield", label: "Privacy Policy", onPress: () => router.push("/settings/privacy-policy") },
+        { icon: "file-text", label: "Terms of Service", onPress: () => router.push("/settings/terms-of-service") },
       ],
     },
     {
@@ -143,9 +147,13 @@ export default function ProfileScreen() {
 
       {/* Avatar card */}
       <View style={[styles.profileCard, { backgroundColor: colors.primary }]}>
-        <View style={styles.avatar}>
-          <Text style={styles.initials}>{initials}</Text>
-        </View>
+        {user?.avatar ? (
+          <Image source={{ uri: user.avatar }} style={styles.avatarImage} />
+        ) : (
+          <View style={styles.avatar}>
+            <Text style={styles.initials}>{initials}</Text>
+          </View>
+        )}
         <Text style={styles.name}>{user?.name ?? "Student"}</Text>
         <Text style={styles.email}>{user?.email}</Text>
         <View style={styles.badges}>
@@ -241,6 +249,12 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.25)",
     alignItems: "center",
     justifyContent: "center",
+    marginBottom: 12,
+  },
+  avatarImage: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     marginBottom: 12,
   },
   initials: { fontSize: 28, fontWeight: "800", color: "#FFF" },

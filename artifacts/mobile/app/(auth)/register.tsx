@@ -257,6 +257,17 @@ export default function RegisterScreen() {
             {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.btnText}>Create Account</Text>}
           </Pressable>
 
+          <View style={styles.termsRow}>
+            <Text style={[styles.termsText, { color: colors.mutedForeground }]}>By signing up, you agree to our </Text>
+            <Pressable onPress={() => router.push("/settings/terms-of-service")}>
+              <Text style={[styles.termsLink, { color: colors.primary }]}>Terms of Service</Text>
+            </Pressable>
+            <Text style={[styles.termsText, { color: colors.mutedForeground }]}> and </Text>
+            <Pressable onPress={() => router.push("/settings/privacy-policy")}>
+              <Text style={[styles.termsLink, { color: colors.primary }]}>Privacy Policy</Text>
+            </Pressable>
+          </View>
+
           <Pressable
             style={({ pressed }) => [
               styles.googleBtn,
@@ -318,6 +329,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   googleBtnText: { fontSize: 15, fontWeight: "600" },
+  termsRow: { 
+    flexDirection: "row", 
+    flexWrap: "wrap", 
+    justifyContent: "center", 
+    alignItems: "center",
+    paddingHorizontal: 20,
+  },
+  termsText: { fontSize: 12, textAlign: "center" },
+  termsLink: { fontSize: 12, fontWeight: "600", textDecorationLine: "underline" },
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
   footerText: { fontSize: 14 },
   link: { fontSize: 14, fontWeight: "700" },

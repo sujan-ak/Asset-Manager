@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Platform,
   Pressable,
@@ -9,6 +9,7 @@ import {
   Text,
   View,
   Image,
+  Modal,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useProgress } from "@/context/ProgressContext";
@@ -23,6 +24,12 @@ export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { courseProgress, watchlist } = useProgress();
+  const [selectedDay, setSelectedDay] = useState<{
+    day: string;
+    minutes: number;
+    lessonsCompleted: number;
+    index: number;
+  } | null>(null);
 
   // Calculate learning statistics
   const stats = useMemo(
@@ -150,9 +157,22 @@ export default function ProgressScreen() {
 
           {/* Weekly Activity */}
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: colors.foreground }]}>
-              Weekly Activity
-            </Text>
+            <View style={styles.activityHeader}>
+              <View>
+                <Text style={[styles.sectionTitle, { color: colors.foreground, marginBottom: 4 }]}>
+                  Weekly Activity
+                </Text>
+                <Text style={[styles.activitySubtitle, { color: colors.mutedForeground }]}>
+                  Tap on a day to see details
+                </Text>
+              </View>
+              <View style={[styles.activityBadge, { backgroundColor: colors.accent }]}>
+                <Feather name="trending-up" size={14} color={colors.primary} />
+                <Text style={[styles.activityBadgeText, { color: colors.primary }]}>
+                  {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} min
+                </Text>
+              </View>
+            </View>
             {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0) === 0 ? (
               <View
                 style={[
@@ -195,15 +215,24 @@ export default function ProgressScreen() {
                   { backgroundColor: colors.card, borderColor: colors.border },
                 ]}
               >
-                <View style={styles.activityChart} pointerEvents="none">
+                <View style={styles.activityChart}>
                   {stats.weeklyActivity.map((day, index) => {
                     const height = maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0;
                     const hasActivity = day.minutes > 0;
+                    const isSelected = selectedDay?.index === index;
 
                     return (
-                      <View
+                      <Pressable
                         key={`week-${index}-${day.day}`}
                         style={styles.activityBarContainer}
+                        onPress={() => {
+                          if (hasActivity) {
+                            setSelectedDay({ ...day, index });
+                          }
+                        }}
+                        accessible={hasActivity}
+                        accessibilityRole="button"
+                        accessibilityLabel={`${day.day}: ${day.minutes} minutes, ${day.lessonsCompleted} lessons completed`}
                       >
                         <View style={styles.activityBarWrapper}>
                           <View
@@ -211,36 +240,108 @@ export default function ProgressScreen() {
                               styles.activityBar,
                               {
                                 height: `${Math.max(height, 5)}%`,
-                                backgroundColor: hasActivity ? colors.primary : colors.muted,
+                                backgroundColor: hasActivity 
+                                  ? isSelected 
+                                    ? colors.primary 
+                                    : `${colors.primary}CC`
+                                  : colors.muted,
+                                transform: [{ scale: isSelected ? 1.1 : 1 }],
+                                shadowColor: isSelected ? colors.primary : "transparent",
+                                shadowOffset: { width: 0, height: 2 },
+                                shadowOpacity: 0.3,
+                                shadowRadius: 4,
+                                elevation: isSelected ? 4 : 0,
                               },
                             ]}
                           />
                         </View>
-                        <Text style={[styles.activityDay, { color: colors.mutedForeground }]}>
+                        <Text
+                          style={[
+                            styles.activityDay,
+                            {
+                              color: isSelected ? colors.primary : colors.mutedForeground,
+                              fontWeight: isSelected ? "700" : "600",
+                            },
+                          ]}
+                        >
                           {day.day}
                         </Text>
                         {hasActivity && (
-                          <Text style={[styles.activityMinutes, { color: colors.primary }]}>
-                            {day.minutes}m
-                          </Text>
+                          <View style={[styles.activityDot, { backgroundColor: colors.primary }]} />
                         )}
-                      </View>
+                      </Pressable>
                     );
                   })}
                 </View>
+
+                {/* Tooltip Display */}
+                {selectedDay && (
+                  <View style={[styles.tooltipCard, { backgroundColor: colors.accent }]}>
+                    <View style={styles.tooltipHeader}>
+                      <Feather name="calendar" size={16} color={colors.primary} />
+                      <Text style={[styles.tooltipDay, { color: colors.foreground }]}>
+                        {selectedDay.day}
+                      </Text>
+                    </View>
+                    <View style={styles.tooltipStats}>
+                      <View style={styles.tooltipStat}>
+                        <Feather name="clock" size={14} color={colors.mutedForeground} />
+                        <Text style={[styles.tooltipStatText, { color: colors.foreground }]}>
+                          {selectedDay.minutes} minutes
+                        </Text>
+                      </View>
+                      <View style={styles.tooltipStat}>
+                        <Feather name="check-circle" size={14} color={colors.mutedForeground} />
+                        <Text style={[styles.tooltipStatText, { color: colors.foreground }]}>
+                          {selectedDay.lessonsCompleted} lesson{selectedDay.lessonsCompleted !== 1 ? "s" : ""}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                <View style={[styles.activityDivider, { backgroundColor: colors.border }]} />
                 <View style={styles.activitySummary}>
                   <View style={styles.activityStat}>
-                    <Feather name="clock" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.activityStatText, { color: colors.foreground }]}>
-                      {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} min this week
-                    </Text>
+                    <View style={[styles.activityStatIcon, { backgroundColor: `${colors.primary}14` }]}>
+                      <Feather name="clock" size={14} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text style={[styles.activityStatLabel, { color: colors.mutedForeground }]}>
+                        Total Time
+                      </Text>
+                      <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
+                        {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} min
+                      </Text>
+                    </View>
                   </View>
+                  <View style={[styles.activityStatDivider, { backgroundColor: colors.border }]} />
                   <View style={styles.activityStat}>
-                    <Feather name="check-circle" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.activityStatText, { color: colors.foreground }]}>
-                      {stats.weeklyActivity.reduce((sum, d) => sum + d.lessonsCompleted, 0)}{" "}
-                      lessons completed
-                    </Text>
+                    <View style={[styles.activityStatIcon, { backgroundColor: `${colors.primary}14` }]}>
+                      <Feather name="check-circle" size={14} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text style={[styles.activityStatLabel, { color: colors.mutedForeground }]}>
+                        Lessons Done
+                      </Text>
+                      <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
+                        {stats.weeklyActivity.reduce((sum, d) => sum + d.lessonsCompleted, 0)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={[styles.activityStatDivider, { backgroundColor: colors.border }]} />
+                  <View style={styles.activityStat}>
+                    <View style={[styles.activityStatIcon, { backgroundColor: `${colors.primary}14` }]}>
+                      <Feather name="zap" size={14} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text style={[styles.activityStatLabel, { color: colors.mutedForeground }]}>
+                        Active Days
+                      </Text>
+                      <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
+                        {stats.weeklyActivity.filter(d => d.minutes > 0).length}/7
+                      </Text>
+                    </View>
                   </View>
                 </View>
               </View>
@@ -499,26 +600,51 @@ const styles = StyleSheet.create({
     color: "#FFF",
   },
 
+  // Weekly Activity Header
+  activityHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    marginBottom: 12,
+  },
+  activitySubtitle: {
+    fontSize: 13,
+    marginTop: 2,
+  },
+  activityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  activityBadgeText: {
+    fontSize: 13,
+    fontWeight: "700",
+  },
+
   // Weekly Activity
   activityCard: {
     borderRadius: 16,
     borderWidth: 1,
-    padding: 20,
     marginHorizontal: 20,
     overflow: "hidden",
   },
   activityChart: {
     flexDirection: "row",
     justifyContent: "space-between",
-    height: 140,
-    marginBottom: 20,
+    height: 160,
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 12,
     position: "relative",
-    zIndex: 1,
   },
   activityBarContainer: {
     flex: 1,
     alignItems: "center",
-    gap: 8,
+    gap: 6,
     position: "relative",
   },
   activityBarWrapper: {
@@ -529,29 +655,88 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   activityBar: {
-    width: "60%",
-    borderRadius: 4,
-    minHeight: 4,
+    width: "70%",
+    borderRadius: 6,
+    minHeight: 6,
     position: "relative",
+    transition: "all 0.2s",
   },
   activityDay: {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: "600",
   },
-  activityMinutes: {
-    fontSize: 10,
-    fontWeight: "700",
+  activityDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+    position: "absolute",
+    bottom: -2,
+  },
+  activityDivider: {
+    height: 1,
+    marginHorizontal: 20,
+    marginVertical: 16,
   },
   activitySummary: {
-    gap: 8,
+    flexDirection: "row",
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 12,
   },
   activityStat: {
+    flex: 1,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
   },
-  activityStatText: {
-    fontSize: 14,
+  activityStatIcon: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  activityStatLabel: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  activityStatValue: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  activityStatDivider: {
+    width: 1,
+    height: "100%",
+  },
+
+  // Tooltip
+  tooltipCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    padding: 14,
+    borderRadius: 12,
+  },
+  tooltipHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 10,
+  },
+  tooltipDay: {
+    fontSize: 15,
+    fontWeight: "700",
+  },
+  tooltipStats: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  tooltipStat: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  tooltipStatText: {
+    fontSize: 13,
     fontWeight: "600",
   },
 

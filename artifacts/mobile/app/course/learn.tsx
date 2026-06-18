@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
 import React, { useState, useEffect } from "react";
@@ -9,6 +9,8 @@ import {
   StyleSheet,
   Text,
   View,
+  ToastAndroid,
+  Alert,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { VideoPlayerEnhanced } from "@/components/VideoPlayerEnhanced";
@@ -18,12 +20,14 @@ import { LearningTabs } from "@/components/LearningTabs";
 import { COURSES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useProgress } from "@/context/ProgressContext";
+import { useFavorites } from "@/context/FavoritesContext";
 
 export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { courseId, moduleId } = useLocalSearchParams<{ courseId: string; moduleId: string }>();
   const { getModuleProgress, updateVideoProgress, enrollCourse, getCourseProgress, completeModule } = useProgress();
+  const { isInWatchLater, toggleWatchLater } = useFavorites();
   const course = COURSES.find((c) => c.id === courseId);
   const [activeTab, setActiveTab] = useState<"overview" | "content">("overview");
   const [activeModuleId, setActiveModuleId] = useState(moduleId ?? course?.modules[0]?.id);
@@ -65,6 +69,29 @@ export default function LearnScreen() {
   const activeModule = course.modules.find((m) => m.id === activeModuleId) ?? course.modules[0];
   const moduleProgress = getModuleProgress(courseId, activeModule.id);
   const initialTime = showResumeModal ? 0 : (moduleProgress?.videoProgress?.currentTime ?? 0);
+  const isSaved = isInWatchLater(activeModule.id);
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', message);
+    }
+  };
+
+  const handleWatchLaterToggle = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const wasAdded = !isSaved;
+    toggleWatchLater({
+      courseId,
+      moduleId: activeModule.id,
+      lessonId: activeModule.id,
+      courseTitle: course.title,
+      lessonTitle: activeModule.title,
+      courseThumbnail: course.thumbnail,
+    });
+    showToast(wasAdded ? 'Added to Watch Later' : 'Removed from Watch Later');
+  };
 
   const handleProgressUpdate = async (currentTime: number, duration: number) => {
     if (!courseId || !activeModule?.id) return;
@@ -171,7 +198,13 @@ export default function LearnScreen() {
         <Text style={[styles.headerTitle, { color: colors.foreground }]} numberOfLines={1}>
           Learning
         </Text>
-        <View style={{ width: 40 }} />
+        <Pressable onPress={handleWatchLaterToggle} style={styles.watchLaterBtn}>
+          <MaterialIcons 
+            name={isSaved ? "bookmark" : "bookmark-border"} 
+            size={22} 
+            color={isSaved ? colors.primary : colors.mutedForeground} 
+          />
+        </Pressable>
       </View>
 
       {/* Course Header - Compact */}
@@ -401,6 +434,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  watchLaterBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: "700", textAlign: "center" },
   
   // Compact Course Header

@@ -21,15 +21,18 @@ import { useColors } from "@/hooks/useColors";
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { login, loginWithGoogle } = useAuth();
+  const { login, loginWithGoogle, sendOtp } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [phone, setPhone] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
+  const [phoneLoading, setPhoneLoading] = useState(false);
   const [error, setError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
 
   async function handleGoogleLogin() {
     setError("");
@@ -78,6 +81,45 @@ export default function LoginScreen() {
       router.replace("/(tabs)");
     } else {
       setError(result.error || "Invalid credentials. Please try again.");
+    }
+  }
+
+  async function handlePhoneLogin() {
+    setPhoneError("");
+    setError("");
+
+    // Remove all non-digit characters for validation
+    const digitsOnly = phone.replace(/\D/g, "");
+
+    if (!phone) {
+      setPhoneError("Enter a valid phone number");
+      return;
+    }
+
+    if (digitsOnly.length < 10) {
+      setPhoneError("Enter a valid phone number");
+      return;
+    }
+
+    // Format to E.164 (add +91 if not present)
+    let formattedPhone = phone.trim();
+    if (!formattedPhone.startsWith("+")) {
+      formattedPhone = "+91" + digitsOnly;
+    }
+
+    setPhoneLoading(true);
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const result = await sendOtp(formattedPhone);
+    setPhoneLoading(false);
+
+    if (result.success) {
+      router.push({
+        pathname: "/(auth)/verify-otp",
+        params: { phone: formattedPhone },
+      });
+    } else {
+      setError(result.error || "Failed to send OTP. Please try again.");
     }
   }
 
@@ -189,6 +231,43 @@ export default function LoginScreen() {
               </>
             )}
           </Pressable>
+
+          <View style={styles.dividerRow}>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+            <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>or continue with phone</Text>
+            <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          </View>
+
+          <View style={styles.fieldGroup}>
+            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: phoneError ? "#DC2626" : colors.border }]}>
+              <Feather name="smartphone" size={16} color={colors.mutedForeground} />
+              <TextInput
+                style={[styles.input, { color: colors.foreground }]}
+                value={phone}
+                onChangeText={(text) => {
+                  setPhone(text);
+                  setPhoneError("");
+                }}
+                placeholder="+91 98765 43210"
+                placeholderTextColor={colors.mutedForeground}
+                keyboardType="phone-pad"
+                autoCapitalize="none"
+              />
+            </View>
+            {phoneError ? <Text style={styles.fieldError}>{phoneError}</Text> : null}
+          </View>
+
+          <Pressable
+            style={({ pressed }) => [styles.phoneBtn, { backgroundColor: colors.primary, opacity: pressed ? 0.85 : 1 }]}
+            onPress={handlePhoneLogin}
+            disabled={phoneLoading}
+          >
+            {phoneLoading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.loginBtnText}>Send OTP</Text>
+            )}
+          </Pressable>
         </View>
 
         <View style={styles.footer}>
@@ -256,6 +335,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
   },
   googleBtnText: { fontSize: 15, fontWeight: "600" },
+  phoneBtn: {
+    paddingVertical: 16,
+    borderRadius: 14,
+    alignItems: "center",
+  },
   footer: { flexDirection: "row", justifyContent: "center", marginTop: 24 },
   footerText: { fontSize: 14 },
   registerLink: { fontSize: 14, fontWeight: "700" },

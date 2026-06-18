@@ -41,6 +41,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   updateUser: (updates: Partial<User>) => Promise<{ success: boolean; error?: string }>;
   resetPassword: (email: string) => Promise<{ success: boolean; error?: string }>;
+  sendOtp: (phone: string) => Promise<{ success: boolean; error?: string }>;
+  verifyOtp: (phone: string, token: string) => Promise<{ success: boolean; error?: string }>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -384,6 +386,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function sendOtp(phone: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      devLog('[Auth] Sending OTP to phone:', phone);
+      setIsLoading(true);
+
+      const { error } = await authService.sendOtp(phone);
+
+      if (error) {
+        devError('[Auth] Send OTP error:', error);
+        setIsLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      devLog('[Auth] OTP sent successfully');
+      setIsLoading(false);
+      return { success: true };
+    } catch (error: any) {
+      devError('[Auth] Send OTP exception:', error);
+      setIsLoading(false);
+      return { success: false, error: error.message || 'Failed to send OTP' };
+    }
+  }
+
+  async function verifyOtp(phone: string, token: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      devLog('[Auth] Verifying OTP for phone:', phone);
+      setIsLoading(true);
+
+      const { data, error } = await authService.verifyOtp(phone, token);
+
+      if (error) {
+        devError('[Auth] Verify OTP error:', error);
+        setIsLoading(false);
+        return { success: false, error: error.message };
+      }
+
+      if (data?.session) {
+        devLog('[Auth] OTP verification successful');
+        // The onAuthStateChange will handle loading/creating the profile
+        return { success: true };
+      }
+
+      setIsLoading(false);
+      return { success: false, error: 'Verification failed' };
+    } catch (error: any) {
+      devError('[Auth] Verify OTP exception:', error);
+      setIsLoading(false);
+      return { success: false, error: error.message || 'Failed to verify OTP' };
+    }
+  }
+
   const value: AuthContextType = {
     user,
     session,
@@ -395,6 +448,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     logout,
     updateUser,
     resetPassword,
+    sendOtp,
+    verifyOtp,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

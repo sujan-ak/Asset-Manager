@@ -11,12 +11,15 @@ import {
   StyleSheet,
   Text,
   View,
+  ToastAndroid,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Badge } from "@/components/Badge";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { COURSES, QUIZZES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useProgress } from "@/context/ProgressContext";
+import { useFavorites } from "@/context/FavoritesContext";
 import { ProgressCalculator } from "@/lib/progressCalculator";
 
 export default function CourseDetailScreen() {
@@ -24,10 +27,20 @@ export default function CourseDetailScreen() {
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { getCourseProgress, enrollCourse } = useProgress();
+  const { isFavoriteCourse, toggleFavoriteCourse } = useFavorites();
   const course = COURSES.find((c) => c.id === id);
   const courseProgress = course ? getCourseProgress(course.id) : null;
   const [isEnrolling, setIsEnrolling] = useState(false);
   const isEnrolled = !!courseProgress;
+  const isFavorite = course ? isFavoriteCourse(course.id) : false;
+
+  const showToast = (message: string) => {
+    if (Platform.OS === 'android') {
+      ToastAndroid.show(message, ToastAndroid.SHORT);
+    } else {
+      Alert.alert('', message);
+    }
+  };
 
   useEffect(() => {
     if (course?.isPurchased && !courseProgress) {
@@ -62,6 +75,20 @@ export default function CourseDetailScreen() {
     ? ProgressCalculator.getLastAccessedModuleId(courseProgress.modules)
     : null;
   const hasStarted = progress > 0;
+
+  const handleFavoriteToggle = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const wasAdded = !isFavorite;
+    toggleFavoriteCourse({
+      id: course.id,
+      title: course.title,
+      thumbnail: course.thumbnail,
+      category: course.category,
+      price: course.price,
+      isFree: course.isFree,
+    });
+    showToast(wasAdded ? 'Added to Favorites' : 'Removed from Favorites');
+  };
 
   const handleEnrollNow = async () => {
     if (!course) return;
@@ -140,7 +167,14 @@ export default function CourseDetailScreen() {
           <View style={[styles.categoryBadge, { backgroundColor: colors.accent }]}>
             <Text style={[styles.categoryText, { color: colors.primary }]}>{course.category}</Text>
           </View>
-          <Text style={[styles.title, { color: colors.foreground }]}>{course.title}</Text>
+          <View style={styles.titleRow}>
+            <Text style={[styles.title, { color: colors.foreground, flex: 1 }]}>{course.title}</Text>
+            <FavoriteButton
+              isFavorite={isFavorite}
+              onPress={handleFavoriteToggle}
+              size={20}
+            />
+          </View>
           <Text style={[styles.instructor, { color: colors.mutedForeground }]}>By {course.instructor}</Text>
 
           {/* Stats row */}
@@ -376,6 +410,11 @@ const styles = StyleSheet.create({
   },
   thumbnailBadge: { position: "absolute" },
   content: { padding: 20, gap: 12 },
+  titleRow: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 8,
+  },
   categoryBadge: { alignSelf: "flex-start", paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   categoryText: { fontSize: 12, fontWeight: "600" },
   title: { fontSize: 22, fontWeight: "800", lineHeight: 28 },

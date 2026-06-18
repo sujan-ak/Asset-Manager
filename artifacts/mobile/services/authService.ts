@@ -125,3 +125,23 @@ export async function resetPasswordForEmail(email: string, redirectTo: string) {
     redirectTo,
   });
 }
+
+/**
+ * Send OTP to phone number
+ */
+export async function sendOtp(phone: string) {
+  return await supabase.auth.signInWithOtp({
+    phone,
+  });
+}
+
+/**
+ * Verify OTP for phone number
+ */
+export async function verifyOtp(phone: string, token: string) {
+  return await supabase.auth.verifyOtp({
+    phone,
+    token,
+    type: 'sms',
+  });
+}
