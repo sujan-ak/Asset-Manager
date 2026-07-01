@@ -1,6 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -17,8 +17,55 @@ import { SearchBar } from "@/components/SearchBar";
 import { SectionHeader } from "@/components/SectionHeader";
 import { ProductCardSkeleton } from "@/components/SkeletonLoader";
 import { useCart } from "@/context/CartContext";
-import { PRODUCTS, STORE_CATEGORIES } from "@/data/mockData";
+import { PRODUCTS, STORE_CATEGORIES, Product } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
+
+const productFallbacks: Record<string, any[]> = {
+  physical: [
+    require('@/assets/images/product_kit_1.png'),
+    require('@/assets/images/product_kit_2.png'),
+    require('@/assets/images/product_kit_3.png'),
+  ],
+  digital: [
+    require('@/assets/images/product_notes_1.png'),
+    require('@/assets/images/product_notes_2.png'),
+    require('@/assets/images/product_notes_3.png'),
+  ]
+};
+
+function mapSupabaseProduct(row: any, index: number): Product {
+  const isDigital = row.category?.toLowerCase() === 'digital' || 
+                    row.subcategory?.toLowerCase() === 'notes' ||
+                    row.subcategory?.toLowerCase() === 'question banks' ||
+                    row.subcategory?.toLowerCase() === 'premium resources';
+  const category = isDigital ? 'digital' : 'physical';
+  
+  let subcategory = row.subcategory;
+  if (!subcategory) {
+    subcategory = isDigital ? "Notes" : "Physical Kits";
+  }
+
+  const thumbnail = row.thumbnail_url 
+    ? { uri: row.thumbnail_url } 
+    : (productFallbacks[category] || productFallbacks.physical)[index % 3];
+
+  return {
+    id: String(row.id),
+    title: row.title || "Untitled Product",
+    category,
+    subcategory,
+    price: Number(row.price) || 0,
+    originalPrice: Number(row.original_price) || Number(row.price) || 0,
+    thumbnail,
+    description: row.description || "No description available.",
+    rating: Number(row.rating) || 4.5,
+    reviews: Number(row.total_reviews) || 0,
+    inStock: row.in_stock === undefined ? true : Boolean(row.in_stock),
+    badge: row.badge || undefined,
+    features: Array.isArray(row.features) ? row.features : [],
+  };
+}
 
 export default function StoreScreen() {
   const colors = useColors();
@@ -26,19 +73,41 @@ export default function StoreScreen() {
   const { count } = useCart();
   const [search, setSearch] = useState("");
   const [activeCategory, setActiveCategory] = useState("All");
+  const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  React.useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
+  useEffect(() => {
+    async function loadProducts() {
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('id, title, slug, description, price, original_price, category, subcategory, thumbnail_url, in_stock, status')
+          .or('status.eq.available,status.eq.active');
+
+        if (error) {
+          console.error('[Store] Error loading products:', error);
+          return;
+        }
+
+        if (data) {
+          const mapped = data.map((row, idx) => mapSupabaseProduct(row, idx));
+          setProducts(mapped);
+        }
+      } catch (err) {
+        console.error('[Store] load error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadProducts();
   }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const physicalProducts = PRODUCTS.filter((p) => p.category === "physical");
-  const digitalProducts = PRODUCTS.filter((p) => p.category === "digital");
+  const physicalProducts = products.filter((p) => p.category === "physical");
+  const digitalProducts = products.filter((p) => p.category === "digital");
 
-  const filtered = PRODUCTS.filter((p) => {
+  const filtered = products.filter((p) => {
     const matchSearch = p.title.toLowerCase().includes(search.toLowerCase());
     const matchCat =
       activeCategory === "All" ||
@@ -116,17 +185,17 @@ export default function StoreScreen() {
                 <ProductCardSkeleton />
               </ScrollView>
             </View>
-            <View style={styles.section}>
-              <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
-                <ProductCardSkeleton />
-              </View>
-              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.carouselContent}>
-                <ProductCardSkeleton />
-                <ProductCardSkeleton />
-                <ProductCardSkeleton />
-              </ScrollView>
-            </View>
           </>
+        ) : products.length === 0 ? (
+          <View style={styles.emptyState}>
+            <View style={[styles.emptyIcon, { backgroundColor: colors.muted }]}>
+              <Feather name="shopping-bag" size={40} color={colors.mutedForeground} />
+            </View>
+            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No products available</Text>
+            <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+              Check back later for new kits and resources!
+            </Text>
+          </View>
         ) : search || activeCategory !== "All" ? (
           filtered.length === 0 ? (
             <View style={styles.emptyState}>
@@ -160,26 +229,30 @@ export default function StoreScreen() {
           )
         ) : (
           <>
-            <View style={styles.section}>
-              <SectionHeader title="Physical Kits" />
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.carouselContent}
-              >
-                {physicalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
-              </ScrollView>
-            </View>
-            <View style={styles.section}>
-              <SectionHeader title="Digital Resources" />
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.carouselContent}
-              >
-                {digitalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
-              </ScrollView>
-            </View>
+            {physicalProducts.length > 0 && (
+              <View style={styles.section}>
+                <SectionHeader title="Physical Kits" />
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.carouselContent}
+                >
+                  {physicalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
+                </ScrollView>
+              </View>
+            )}
+            {digitalProducts.length > 0 && (
+              <View style={styles.section}>
+                <SectionHeader title="Digital Resources" />
+                <ScrollView 
+                  horizontal 
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.carouselContent}
+                >
+                  {digitalProducts.map((p) => <ProductCard key={p.id} product={p} onAddedToCart={handleAddedToCart} />)}
+                </ScrollView>
+              </View>
+            )}
           </>
         )}
       </ScrollView>

@@ -1,31 +1,76 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState, useEffect } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
-
-const MOCK_ORDERS = [
-  {
-    id: "ord1",
-    date: "Jun 2, 2026",
-    status: "Delivered",
-    items: ["Arduino Robotics Starter Kit"],
-    total: 2999,
-  },
-  {
-    id: "ord2",
-    date: "May 15, 2026",
-    status: "Processing",
-    items: ["Robotics Complete Notes Bundle", "AI/ML Question Bank 2025"],
-    total: 698,
-  },
-];
+import { useAuth } from "@/context/AuthContextSupabase";
+import { supabase } from "@/lib/supabase";
 
 export default function OrdersScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
+  const { user } = useAuth();
+  const [orders, setOrders] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadOrders() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('orders')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('[Orders] Error fetching orders:', error);
+          return;
+        }
+
+        if (data) {
+          const mapped = data.map((order: any) => {
+            let itemsList: any[] = [];
+            try {
+              itemsList = typeof order.items === 'string' ? JSON.parse(order.items) : order.items;
+            } catch (e) {
+              itemsList = Array.isArray(order.items) ? order.items : [];
+            }
+            const dateObj = new Date(order.created_at);
+            const dateStr = dateObj.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+            return {
+              id: String(order.id),
+              date: dateStr,
+              status: order.status ? (order.status.charAt(0).toUpperCase() + order.status.slice(1)) : 'Processing',
+              items: itemsList.map((i: any) => i.title || "Untitled Product"),
+              total: Number(order.total_amount) || 0,
+            };
+          });
+          setOrders(mapped);
+        }
+      } catch (err) {
+        console.error('[Orders] Load error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadOrders();
+  }, [user?.id]);
+
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -41,26 +86,26 @@ export default function OrdersScreen() {
         contentContainerStyle={{ padding: 20, paddingBottom: Platform.OS === "web" ? 34 : insets.bottom + 100 }}
         showsVerticalScrollIndicator={false}
       >
-        {MOCK_ORDERS.length === 0 ? (
+        {orders.length === 0 ? (
           <View style={styles.empty}>
             <Feather name="package" size={48} color={colors.mutedForeground} />
             <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No orders yet</Text>
           </View>
         ) : (
-          MOCK_ORDERS.map((order) => (
+          orders.map((order) => (
             <View key={order.id} style={[styles.orderCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <View style={styles.orderHeader}>
                 <Text style={[styles.orderId, { color: colors.mutedForeground }]}>Order #{order.id.toUpperCase()}</Text>
                 <View
                   style={[
                     styles.statusBadge,
-                    { backgroundColor: order.status === "Delivered" ? "#DCFCE7" : "#FEF3C7" },
+                    { backgroundColor: (order.status === "Delivered" || order.status === "Completed") ? "#DCFCE7" : "#FEF3C7" },
                   ]}
                 >
                   <Text
                     style={[
                       styles.statusText,
-                      { color: order.status === "Delivered" ? "#16A34A" : "#D97706" },
+                      { color: (order.status === "Delivered" || order.status === "Completed") ? "#16A34A" : "#D97706" },
                     ]}
                   >
                     {order.status}
@@ -68,7 +113,7 @@ export default function OrdersScreen() {
                 </View>
               </View>
               <Text style={[styles.date, { color: colors.mutedForeground }]}>{order.date}</Text>
-              {order.items.map((item, i) => (
+              {order.items.map((item: string, i: number) => (
                 <Text key={i} style={[styles.item, { color: colors.foreground }]}>
                   · {item}
                 </Text>

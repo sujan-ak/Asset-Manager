@@ -10,25 +10,72 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { QUIZZES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
 
 export default function QuizScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { id } = useLocalSearchParams<{ id: string }>();
-  const quiz = QUIZZES.find((q) => q.id === id);
+  const { id: lessonId } = useLocalSearchParams<{ id: string }>();
 
+  const [questions, setQuestions] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [selectedOption, setSelectedOption] = useState<number | null>(null);
   const [answers, setAnswers] = useState<number[]>([]);
-  const [timeLeft, setTimeLeft] = useState(quiz?.timeLimit ?? 600);
+  const [timeLeft, setTimeLeft] = useState(600);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shakeAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    async function loadQuiz() {
+      if (!lessonId) return;
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('quiz_questions')
+          .select('id, question_text, options, correct_option_index, position')
+          .eq('lesson_id', lessonId)
+          .order('position', { ascending: true });
+
+        if (error) {
+          console.error('[Quiz] Error loading questions:', error);
+          return;
+        }
+
+        if (data) {
+          const mapped = data.map((q) => {
+            let opts = [];
+            try {
+              opts = typeof q.options === 'string' ? JSON.parse(q.options) : q.options;
+            } catch (e) {
+              opts = Array.isArray(q.options) ? q.options : [];
+            }
+            return {
+              id: q.id,
+              question: q.question_text,
+              options: opts,
+              correctIndex: q.correct_option_index,
+              explanation: "Select the correct answer to complete this question.",
+            };
+          });
+          setQuestions(mapped);
+          setTimeLeft(mapped.length * 60 || 600);
+        }
+      } catch (err) {
+        console.error('[Quiz] load error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadQuiz();
+  }, [lessonId]);
+
+  useEffect(() => {
+    if (isLoading || questions.length === 0) return;
     timerRef.current = setInterval(() => {
       setTimeLeft((t) => {
         if (t <= 1) {
@@ -39,22 +86,47 @@ export default function QuizScreen() {
         return t - 1;
       });
     }, 1000);
-    return () => clearInterval(timerRef.current!);
-  }, []);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isLoading, questions, answers]);
 
-  if (!quiz) {
+  const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  if (isLoading) {
     return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <Text style={{ color: colors.foreground, padding: 24 }}>Quiz not found.</Text>
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
   }
 
-  const question = quiz.questions[currentIndex];
-  const progress = (currentIndex / quiz.questions.length) * 100;
+  if (questions.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, paddingTop: topPad + 40, alignItems: "center", paddingHorizontal: 32 }]}>
+        <View style={[styles.emptyIconContainer, { backgroundColor: colors.muted }]}>
+          <Feather name="help-circle" size={48} color={colors.mutedForeground} />
+        </View>
+        <Text style={[styles.emptyTitle, { color: colors.foreground }]}>
+          Quiz Coming Soon
+        </Text>
+        <Text style={[styles.emptyText, { color: colors.mutedForeground }]}>
+          There are no quiz questions added for this lesson yet. Check back later!
+        </Text>
+        <Pressable
+          style={[styles.backBtn, { backgroundColor: colors.primary }]}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backBtnText}>Go Back</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const question = questions[currentIndex];
+  const progress = (currentIndex / questions.length) * 100;
   const mins = Math.floor(timeLeft / 60);
   const secs = timeLeft % 60;
-  const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   function selectOption(idx: number) {
     if (selectedOption !== null) return;
@@ -74,21 +146,21 @@ export default function QuizScreen() {
 
   function next() {
     const newAnswers = [...answers, selectedOption ?? -1];
-    if (currentIndex < quiz!.questions.length - 1) {
+    if (currentIndex < questions.length - 1) {
       setAnswers(newAnswers);
       setCurrentIndex(currentIndex + 1);
       setSelectedOption(null);
     } else {
-      clearInterval(timerRef.current!);
+      if (timerRef.current) clearInterval(timerRef.current);
       finishQuiz(newAnswers);
     }
   }
 
   function finishQuiz(finalAnswers: number[]) {
-    const score = finalAnswers.reduce((s, ans, i) => (ans === quiz!.questions[i].correctIndex ? s + 1 : s), 0);
+    const score = finalAnswers.reduce((s, ans, i) => (ans === questions[i].correctIndex ? s + 1 : s), 0);
     router.replace({
       pathname: "/quiz/result",
-      params: { quizId: quiz!.id, score: score.toString(), total: quiz!.questions.length.toString() },
+      params: { quizId: lessonId, score: score.toString(), total: questions.length.toString() },
     });
   }
 
@@ -113,7 +185,7 @@ export default function QuizScreen() {
           <Feather name="x" size={22} color={colors.foreground} />
         </Pressable>
         <Text style={[styles.headerTitle, { color: colors.foreground }]}>
-          {currentIndex + 1} / {quiz.questions.length}
+          {currentIndex + 1} / {questions.length}
         </Text>
         <View style={[styles.timer, { backgroundColor: timeLeft < 60 ? "#FEE2E2" : colors.accent }]}>
           <Feather name="clock" size={12} color={timeLeft < 60 ? "#DC2626" : colors.primary} />
@@ -137,7 +209,7 @@ export default function QuizScreen() {
           <Text style={[styles.question, { color: colors.foreground }]}>{question.question}</Text>
 
           <View style={styles.options}>
-            {question.options.map((opt, idx) => {
+            {question.options.map((opt: string, idx: number) => {
               const oc = optionColors(idx);
               return (
                 <Pressable
@@ -187,7 +259,7 @@ export default function QuizScreen() {
             onPress={next}
           >
             <Text style={styles.nextBtnText}>
-              {currentIndex === quiz.questions.length - 1 ? "Finish Quiz" : "Next Question"}
+              {currentIndex === questions.length - 1 ? "Finish Quiz" : "Next Question"}
             </Text>
             <Feather name="arrow-right" size={18} color="#FFF" />
           </Pressable>
@@ -246,4 +318,37 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   nextBtnText: { fontSize: 16, fontWeight: "700", color: "#FFF" },
+  emptyIconContainer: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 24,
+  },
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    marginBottom: 12,
+    textAlign: "center",
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 24,
+  },
+  backBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 10,
+    minHeight: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  backBtnText: {
+    color: "#FFF",
+    fontWeight: "700",
+    fontSize: 15,
+  },
 });

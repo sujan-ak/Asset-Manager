@@ -14,17 +14,64 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useProgress } from "@/context/ProgressContext";
-import { fetchAllCourses } from "@/services/courseDataProvider";
+import { fetchAllCourses, getCourseModules } from "@/services/courseDataProvider";
 import { useColors } from "@/hooks/useColors";
 import { ProgressAnalytics } from "@/lib/progressAnalytics";
 import { ProgressStats } from "@/components/ProgressStats";
 import { WatchlistCard } from "@/components/WatchlistCard";
 import { SectionHeader } from "@/components/SectionHeader";
+import { useAuth } from "@/context/AuthContextSupabase";
+import { fetchEnrolledCourses } from "@/services/enrollmentService";
+import { supabase } from "@/lib/supabase";
+
+function calculateStreak(progressList: any[]): number {
+  const dates = progressList
+    .map((p) => p.last_watched_at ? new Date(p.last_watched_at).toDateString() : null)
+    .filter(Boolean)
+    .filter((date, index, self) => self.indexOf(date) === index)
+    .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime());
+
+  if (dates.length === 0) return 0;
+
+  const today = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+  if (dates[0] !== today && dates[0] !== yesterday) {
+    return 0; // streak broken
+  }
+
+  let streak = 1;
+  let currentDate = new Date(dates[0]!);
+
+  for (let i = 1; i < dates.length; i++) {
+    const prevDate = new Date(currentDate);
+    prevDate.setDate(prevDate.getDate() - 1);
+
+    if (dates[i] === prevDate.toDateString()) {
+      streak++;
+      currentDate = new Date(dates[i]!);
+    } else {
+      break;
+    }
+  }
+
+  return streak;
+}
+
+function formatTotalTime(totalSeconds: number): string {
+  const minutes = Math.round(totalSeconds / 60);
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  const hours = totalSeconds / 3600;
+  return `${hours.toFixed(1)} hrs`;
+}
 
 export default function ProgressScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { courseProgress, watchlist } = useProgress();
+  const { user } = useAuth();
   const [selectedDay, setSelectedDay] = useState<{
     day: string;
     minutes: number;
@@ -34,9 +81,25 @@ export default function ProgressScreen() {
 
   const [courses, setCourses] = useState<any[]>([]);
   const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+  const [stats, setStats] = useState<any>({
+    totalCoursesEnrolled: 0,
+    coursesCompleted: 0,
+    coursesInProgress: 0,
+    totalLessonsCompleted: 0,
+    averageProgress: 0,
+    totalTimeSpent: 0,
+    learningStreak: 0,
+    weeklyActivity: [],
+    recentlyCompleted: [],
+  });
 
   React.useEffect(() => {
-    async function loadCourses() {
+    async function loadStatsAndCourses() {
+      if (!user?.id) {
+        setIsLoadingCourses(false);
+        return;
+      }
+      setIsLoadingCourses(true);
       try {
         const all = await fetchAllCourses();
         const mapped = all.map((c: any) => ({
@@ -54,19 +117,149 @@ export default function ProgressScreen() {
           modules: []
         }));
         setCourses(mapped);
+
+        // Fetch enrollments
+        const enrollments = await fetchEnrolledCourses(user.id);
+
+        // Fetch lesson progress
+        const { data: progressData, error: progressError } = await supabase
+          .from('lesson_progress')
+          .select('course_id, lesson_id, time_spent_secs, is_completed, last_watched_at')
+          .eq('user_id', user.id);
+
+        if (progressError) throw progressError;
+        const progressList = progressData ?? [];
+
+        // Calculate completed courses count
+        let completedCoursesCount = 0;
+        let notStartedCoursesCount = 0;
+
+        const courseProgressListMap = new Map<string, any[]>();
+        progressList.forEach((p) => {
+          const cId = String(p.course_id);
+          if (!courseProgressListMap.has(cId)) {
+            courseProgressListMap.set(cId, []);
+          }
+          courseProgressListMap.get(cId)!.push(p);
+        });
+
+        for (const enr of enrollments) {
+          if (enr.completed_at) {
+            completedCoursesCount++;
+          } else {
+            const courseId = String(enr.course_id);
+            const courseModules = await getCourseModules(courseId);
+            const lessonIds = courseModules.flatMap((m: any) => (m.lessons ?? []).map((l: any) => l.id));
+            
+            if (lessonIds.length > 0) {
+              const courseProg = courseProgressListMap.get(courseId) ?? [];
+              const completedLessons = courseProg.filter((p) => p.is_completed && lessonIds.includes(p.lesson_id)).length;
+              if (completedLessons === lessonIds.length) {
+                completedCoursesCount++;
+              } else if (completedLessons === 0 && courseProg.length === 0) {
+                notStartedCoursesCount++;
+              }
+            } else {
+              notStartedCoursesCount++;
+            }
+          }
+        }
+
+        const totalCoursesEnrolled = enrollments.length;
+        const coursesInProgress = Math.max(0, totalCoursesEnrolled - completedCoursesCount - notStartedCoursesCount);
+        const totalLessonsCompleted = progressList.filter((p) => p.is_completed).length;
+
+        // Calculate average progress
+        let progressSum = 0;
+        for (const enr of enrollments) {
+          const courseId = String(enr.course_id);
+          const courseModules = await getCourseModules(courseId);
+          const lessonIds = courseModules.flatMap((m: any) => (m.lessons ?? []).map((l: any) => l.id));
+          if (lessonIds.length > 0) {
+            const courseProg = courseProgressListMap.get(courseId) ?? [];
+            const completedLessons = courseProg.filter((p) => p.is_completed && lessonIds.includes(p.lesson_id)).length;
+            progressSum += Math.round((completedLessons / lessonIds.length) * 100);
+          }
+        }
+        const averageProgress = totalCoursesEnrolled > 0 ? Math.round(progressSum / totalCoursesEnrolled) : 0;
+
+        // Calculate total time spent
+        const totalTimeSpent = progressList.reduce((sum, p) => sum + (p.time_spent_secs || 0), 0);
+
+        // Calculate learning streak
+        const learningStreak = calculateStreak(progressList);
+
+        // Generate weekly activity (7 days ending with today)
+        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        const weeklyActivity = [];
+        const now = new Date();
+
+        for (let i = 6; i >= 0; i--) {
+          const date = new Date(now);
+          date.setDate(now.getDate() - i);
+          const dayName = days[date.getDay()];
+          const dateString = date.toDateString();
+
+          const dayProgress = progressList.filter(p => {
+            if (!p.last_watched_at) return false;
+            return new Date(p.last_watched_at).toDateString() === dateString;
+          });
+
+          const dayMinutes = dayProgress.reduce((sum, p) => sum + (p.time_spent_secs || 0), 0) / 60;
+          const dayCompleted = dayProgress.filter(p => p.is_completed).length;
+
+          weeklyActivity.push({
+            day: dayName,
+            minutes: Math.round(dayMinutes),
+            lessonsCompleted: dayCompleted,
+          });
+        }
+
+        // Calculate recently completed lessons (last 10)
+        const recentlyCompleted: any[] = [];
+        for (const p of progressList) {
+          if (p.is_completed && p.last_watched_at) {
+            const course = mapped.find((c: any) => c.id === String(p.course_id));
+            if (!course) continue;
+
+            const courseModules = await getCourseModules(String(p.course_id));
+            const matchedModule = courseModules.find((m: any) => (m.lessons ?? []).some((l: any) => l.id === p.lesson_id));
+
+            if (matchedModule) {
+              recentlyCompleted.push({
+                courseId: course.id,
+                courseTitle: course.title,
+                moduleId: matchedModule.id,
+                moduleTitle: matchedModule.title,
+                completedAt: p.last_watched_at,
+                courseThumbnail: course.thumbnail,
+              });
+            }
+          }
+        }
+        recentlyCompleted.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+        const topRecentlyCompleted = recentlyCompleted.slice(0, 10);
+
+        setStats({
+          totalCoursesEnrolled,
+          coursesCompleted: completedCoursesCount,
+          coursesInProgress,
+          totalLessonsCompleted,
+          averageProgress,
+          totalTimeSpent,
+          learningStreak,
+          weeklyActivity,
+          recentlyCompleted: topRecentlyCompleted,
+        });
+
       } catch (err) {
-        console.error('[Progress] Error loading courses:', err);
+        console.error('[Progress] Error loading stats & courses:', err);
       } finally {
         setIsLoadingCourses(false);
       }
     }
-    loadCourses();
-  }, []);
-
-  const stats = useMemo(
-    () => ProgressAnalytics.calculateLearningStats(courseProgress, courses),
-    [courseProgress, courses]
-  );
+    loadStatsAndCourses();
+  }, [user?.id]);
 
   const coursesWithProgress = useMemo(
     () => ProgressAnalytics.getCoursesWithProgress(courseProgress, courses),
@@ -84,7 +277,7 @@ export default function ProgressScreen() {
   }
 
   // Get max minutes for weekly activity chart scaling
-  const maxMinutes = Math.max(...stats.weeklyActivity.map((d) => d.minutes), 1);
+  const maxMinutes = Math.max(...stats.weeklyActivity.map((d: any) => d.minutes), 1);
 
   return (
     <ScrollView
@@ -145,54 +338,27 @@ export default function ProgressScreen() {
             />
           </View>
 
-          {/* Learning Streak Card */}
-          {stats.totalLessonsCompleted === 0 ? (
-            <View style={styles.section}>
-              <View
-                style={[
-                  styles.streakCard,
-                  { backgroundColor: colors.muted, borderColor: colors.border },
-                ]}
-              >
-                <View style={styles.streakHeader}>
-                  <View style={[styles.streakIcon, { backgroundColor: colors.card }]}>
-                    <Feather name="target" size={24} color={colors.mutedForeground} />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={[styles.streakTitle, { color: colors.foreground }]}>
-                      Complete your first lesson to start a streak!
-                    </Text>
-                    <Text style={[styles.streakSubtitle, { color: colors.mutedForeground }]}>
-                      Build momentum by learning every day
-                    </Text>
-                  </View>
-                </View>
+          {/* Learning Streak & Time Spent Row */}
+          <View style={styles.statsRow}>
+            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.statIconWrapper, { backgroundColor: colors.accent }]}>
+                <Feather name="clock" size={20} color={colors.primary} />
               </View>
+              <Text style={[styles.statCardValue, { color: colors.foreground }]}>
+                {formatTotalTime(stats.totalTimeSpent)}
+              </Text>
+              <Text style={[styles.statCardLabel, { color: colors.mutedForeground }]}>Total Time Spent</Text>
             </View>
-          ) : stats.learningStreak > 0 ? (
-            <View style={styles.section}>
-              <View
-                style={[
-                  styles.streakCard,
-                  { backgroundColor: colors.primary, borderColor: colors.primary },
-                ]}
-              >
-                <View style={styles.streakHeader}>
-                  <View style={styles.streakIcon}>
-                    <Feather name="zap" size={24} color="#FFF" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.streakTitle}>
-                      {stats.learningStreak} Day Streak! 🔥
-                    </Text>
-                    <Text style={styles.streakSubtitle}>
-                      Keep it up! You're on a roll
-                    </Text>
-                  </View>
-                </View>
+            <View style={[styles.statCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+              <View style={[styles.statIconWrapper, { backgroundColor: "#FEF3C7" }]}>
+                <Feather name="zap" size={20} color="#F59E0B" />
               </View>
+              <Text style={[styles.statCardValue, { color: colors.foreground }]}>
+                {stats.learningStreak} Days
+              </Text>
+              <Text style={[styles.statCardLabel, { color: colors.mutedForeground }]}>Learning Streak</Text>
             </View>
-          ) : null}
+          </View>
 
           {/* Weekly Activity */}
           <View style={styles.section}>
@@ -208,11 +374,11 @@ export default function ProgressScreen() {
               <View style={[styles.activityBadge, { backgroundColor: colors.accent }]}>
                 <Feather name="trending-up" size={14} color={colors.primary} />
                 <Text style={[styles.activityBadgeText, { color: colors.primary }]}>
-                  {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} min
+                  {stats.weeklyActivity.reduce((sum: number, d: any) => sum + d.minutes, 0)} min
                 </Text>
               </View>
             </View>
-            {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0) === 0 ? (
+            {stats.weeklyActivity.reduce((sum: number, d: any) => sum + d.minutes, 0) === 0 ? (
               <View
                 style={[
                   styles.emptyActivityCard,
@@ -255,7 +421,7 @@ export default function ProgressScreen() {
                 ]}
               >
                 <View style={styles.activityChart}>
-                  {stats.weeklyActivity.map((day, index) => {
+                  {stats.weeklyActivity.map((day: any, index: number) => {
                     const height = maxMinutes > 0 ? (day.minutes / maxMinutes) * 100 : 0;
                     const hasActivity = day.minutes > 0;
                     const isSelected = selectedDay?.index === index;
@@ -350,7 +516,7 @@ export default function ProgressScreen() {
                         Total Time
                       </Text>
                       <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
-                        {stats.weeklyActivity.reduce((sum, d) => sum + d.minutes, 0)} min
+                        {stats.weeklyActivity.reduce((sum: number, d: any) => sum + d.minutes, 0)} min
                       </Text>
                     </View>
                   </View>
@@ -364,7 +530,7 @@ export default function ProgressScreen() {
                         Lessons Done
                       </Text>
                       <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
-                        {stats.weeklyActivity.reduce((sum, d) => sum + d.lessonsCompleted, 0)}
+                        {stats.weeklyActivity.reduce((sum: number, d: any) => sum + d.lessonsCompleted, 0)}
                       </Text>
                     </View>
                   </View>
@@ -378,7 +544,7 @@ export default function ProgressScreen() {
                         Active Days
                       </Text>
                       <Text style={[styles.activityStatValue, { color: colors.foreground }]}>
-                        {stats.weeklyActivity.filter(d => d.minutes > 0).length}/7
+                        {stats.weeklyActivity.filter((d: any) => d.minutes > 0).length}/7
                       </Text>
                     </View>
                   </View>
@@ -441,7 +607,7 @@ export default function ProgressScreen() {
                 }`}
               />
               <View style={styles.completedList}>
-                {stats.recentlyCompleted.slice(0, 5).map((lesson, index) => (
+                {stats.recentlyCompleted.slice(0, 5).map((lesson: any, index: number) => (
                   <Pressable
                     key={`${lesson.courseId}-${lesson.moduleId}-${index}`}
                     style={[
@@ -561,39 +727,37 @@ const styles = StyleSheet.create({
   },
 
   // Streak Card
-  streakCard: {
-    borderRadius: 16,
-    borderWidth: 2,
-    padding: 20,
-    marginHorizontal: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  streakHeader: {
+  statsRow: {
     flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
+    justifyContent: "space-between",
+    marginHorizontal: 20,
+    marginTop: 8,
+    gap: 12,
   },
-  streakIcon: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    backgroundColor: "rgba(255,255,255,0.2)",
+  statCard: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
+    gap: 6,
   },
-  streakTitle: {
-    fontSize: 20,
-    fontWeight: "800",
-    color: "#FFF",
+  statIconWrapper: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
     marginBottom: 4,
   },
-  streakSubtitle: {
-    fontSize: 14,
-    color: "rgba(255,255,255,0.85)",
+  statCardValue: {
+    fontSize: 20,
+    fontWeight: "800",
+  },
+  statCardLabel: {
+    fontSize: 12,
+    fontWeight: "600",
   },
 
   // Weekly Activity Empty State

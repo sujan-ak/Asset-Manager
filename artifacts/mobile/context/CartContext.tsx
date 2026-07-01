@@ -19,19 +19,40 @@ interface CartContextType {
 const CartContext = createContext<CartContextType | null>(null);
 
 const STORAGE_KEY = "@edodwaja_cart";
+// Bump this number whenever the Product schema changes to invalidate stale caches.
+const CART_VERSION = 2;
+
+interface PersistedCart {
+  version: number;
+  items: CartItem[];
+}
 
 export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<CartItem[]>([]);
 
   useEffect(() => {
-    AsyncStorage.getItem(STORAGE_KEY).then((data) => {
-      if (data) setItems(JSON.parse(data));
+    AsyncStorage.getItem(STORAGE_KEY).then((raw) => {
+      if (!raw) return;
+      try {
+        const parsed: PersistedCart = JSON.parse(raw);
+        // Only restore cart if the stored version matches the current schema version.
+        // If the version is missing or outdated (i.e. stale mock data), discard it.
+        if (parsed && parsed.version === CART_VERSION && Array.isArray(parsed.items)) {
+          setItems(parsed.items);
+        } else {
+          // Stale / mock data — wipe it so checkout never shows old snapshots.
+          AsyncStorage.removeItem(STORAGE_KEY);
+        }
+      } catch {
+        AsyncStorage.removeItem(STORAGE_KEY);
+      }
     });
   }, []);
 
   function save(updated: CartItem[]) {
     setItems(updated);
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    const payload: PersistedCart = { version: CART_VERSION, items: updated };
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(payload));
   }
 
   function addToCart(product: Product) {

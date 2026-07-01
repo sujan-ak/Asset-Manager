@@ -54,6 +54,7 @@ export function VideoPlayerEnhanced({
   // FIX: Dynamic dimensions that update on orientation change
   const [screenDims, setScreenDims] = useState(Dimensions.get("window"));
 
+  const isMounted = useRef(true);
   const hasEmittedComplete = useRef(false);
   const lastSaveTime = useRef(0);
   const overlayOpacity = useRef(new Animated.Value(1)).current;
@@ -69,10 +70,33 @@ export function VideoPlayerEnhanced({
     }
   });
 
+  // Keep track of mounted state
+  useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
+
+  // Pause player explicitly on unmount / when player instance changes
+  useEffect(() => {
+    return () => {
+      try {
+        if (player) {
+          player.pause();
+        }
+      } catch (err) {
+        devLog("[VideoPlayer] Cleanup pause ignored:", err);
+      }
+    };
+  }, [player]);
+
   // FIX: Listen for dimension changes (fires when device rotates)
   useEffect(() => {
     const subscription = Dimensions.addEventListener("change", ({ window }) => {
-      setScreenDims(window);
+      if (isMounted.current) {
+        setScreenDims(window);
+      }
     });
     return () => subscription.remove();
   }, []);
@@ -99,6 +123,7 @@ export function VideoPlayerEnhanced({
 
   // Auto-hide controls after delay when playing
   const showControlsWithTimer = () => {
+    if (!isMounted.current) return;
     setShowControls(true);
     Animated.timing(overlayOpacity, {
       toValue: 1,
@@ -112,12 +137,15 @@ export function VideoPlayerEnhanced({
 
     if (isPlaying) {
       hideTimer.current = setTimeout(() => {
+        if (!isMounted.current) return;
         Animated.timing(overlayOpacity, {
           toValue: 0,
           duration: 100,
           useNativeDriver: true,
         }).start(() => {
-          setShowControls(false);
+          if (isMounted.current) {
+            setShowControls(false);
+          }
         });
       }, 3000);
     }
@@ -127,46 +155,56 @@ export function VideoPlayerEnhanced({
     if (!player) return;
 
     const playingInterval = setInterval(() => {
-      const playing = player.playing;
-      const currentT = player.currentTime;
-      const durationT = player.duration;
-      const status = player.status;
-
-      setIsPlaying(playing);
-      setCurrentTime(currentT);
-      setDuration(durationT);
-
-      const loading = status === "loading";
-      setIsLoading(loading);
-      onLoadingStateChange?.(loading);
-
-      if (status !== lastStatus) {
-        if (status === "readyToPlay" || status === "idle") {
-          devLog(
-            "[VideoPlayer] Video ready - Status:",
-            status,
-            "Duration:",
-            durationT
-          );
+      try {
+        if (!isMounted.current || !player) {
+          clearInterval(playingInterval);
+          return;
         }
-        if (status === "error") {
-          devError("[VideoPlayer] Video error detected");
+
+        const playing = player.playing;
+        const currentT = player.currentTime;
+        const durationT = player.duration;
+        const status = player.status;
+
+        setIsPlaying(playing);
+        setCurrentTime(currentT);
+        setDuration(durationT);
+
+        const loading = status === "loading";
+        setIsLoading(loading);
+        onLoadingStateChange?.(loading);
+
+        if (status !== lastStatus) {
+          if (status === "readyToPlay" || status === "idle") {
+            devLog(
+              "[VideoPlayer] Video ready - Status:",
+              status,
+              "Duration:",
+              durationT
+            );
+          }
+          if (status === "error") {
+            devError("[VideoPlayer] Video error detected");
+          }
+          setLastStatus(status);
         }
-        setLastStatus(status);
-      }
 
-      // Save progress every 5 seconds
-      const now = Date.now();
-      if (playing && now - lastSaveTime.current >= 5000) {
-        onProgressUpdate?.(currentT, durationT);
-        lastSaveTime.current = now;
-      }
+        // Save progress every 5 seconds
+        const now = Date.now();
+        if (playing && now - lastSaveTime.current >= 5000) {
+          onProgressUpdate?.(currentT, durationT);
+          lastSaveTime.current = now;
+        }
 
-      // Check completion threshold (90%)
-      const percentage = durationT > 0 ? (currentT / durationT) * 100 : 0;
-      if (percentage >= 90 && !hasEmittedComplete.current) {
-        onComplete?.();
-        hasEmittedComplete.current = true;
+        // Check completion threshold (90%)
+        const percentage = durationT > 0 ? (currentT / durationT) * 100 : 0;
+        if (percentage >= 90 && !hasEmittedComplete.current) {
+          onComplete?.();
+          hasEmittedComplete.current = true;
+        }
+      } catch (err) {
+        devLog("[VideoPlayer] Player accessed after release / during unmount, ignoring:", err);
+        clearInterval(playingInterval);
       }
     }, 100);
 
@@ -194,6 +232,7 @@ export function VideoPlayerEnhanced({
     if (Platform.OS !== "web") return;
 
     const handleFullscreenChange = () => {
+      if (!isMounted.current) return;
       const isCurrentlyFullscreen = !!(
         document.fullscreenElement ||
         (document as any).webkitFullscreenElement
@@ -224,41 +263,59 @@ export function VideoPlayerEnhanced({
 
   const togglePlayPause = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isMounted.current || !player) return;
 
-    const isAtEnd = duration > 0 && currentTime >= duration - 0.5;
+    try {
+      const isAtEnd = duration > 0 && currentTime >= duration - 0.5;
 
-    if (isPlaying) {
-      player.pause();
-    } else {
-      if (isAtEnd) {
-        player.currentTime = 0;
-        hasEmittedComplete.current = false;
+      if (isPlaying) {
+        player.pause();
+      } else {
+        if (isAtEnd) {
+          player.currentTime = 0;
+          hasEmittedComplete.current = false;
+        }
+        player.play();
       }
-      player.play();
+      showControlsWithTimer();
+    } catch (err) {
+      devError("[VideoPlayer] Failed togglePlayPause:", err);
     }
-    showControlsWithTimer();
   };
 
   const skipForward = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!isMounted.current || !player) return;
     if (!duration || duration <= 0 || !isFinite(duration)) return;
-    const newTime = Math.min(duration, currentTime + 15);
-    if (isFinite(newTime)) {
-      player.currentTime = newTime;
+
+    try {
+      const newTime = Math.min(duration, currentTime + 15);
+      if (isFinite(newTime)) {
+        player.currentTime = newTime;
+      }
+      showControlsWithTimer();
+    } catch (err) {
+      devError("[VideoPlayer] Failed skipForward:", err);
     }
-    showControlsWithTimer();
   };
 
   const skipBackward = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    const newTime = Math.max(0, currentTime - 15);
-    if (isFinite(newTime)) {
-      player.currentTime = newTime;
+    if (!isMounted.current || !player) return;
+
+    try {
+      const newTime = Math.max(0, currentTime - 15);
+      if (isFinite(newTime)) {
+        player.currentTime = newTime;
+      }
+      showControlsWithTimer();
+    } catch (err) {
+      devError("[VideoPlayer] Failed skipBackward:", err);
     }
-    showControlsWithTimer();
   };
 
   const handleSpeedChange = async (speed: number) => {
+    if (!isMounted.current || !player) return;
     try {
       player.playbackRate = speed;
       setPlaybackSpeed(speed);
@@ -270,16 +327,21 @@ export function VideoPlayerEnhanced({
   };
 
   const handleSliderChange = (value: number) => {
+    if (!isMounted.current || !player) return;
     if (!duration || duration <= 0 || !isFinite(duration)) {
       devLog("[VideoPlayer] Cannot seek - invalid duration:", duration);
       return;
     }
 
-    const newTime = value;
-    if (isFinite(newTime) && newTime >= 0) {
-      player.currentTime = newTime;
-    } else {
-      devLog("[VideoPlayer] Invalid seek time calculated:", newTime);
+    try {
+      const newTime = value;
+      if (isFinite(newTime) && newTime >= 0) {
+        player.currentTime = newTime;
+      } else {
+        devLog("[VideoPlayer] Invalid seek time calculated:", newTime);
+      }
+    } catch (err) {
+      devError("[VideoPlayer] Failed handleSliderChange:", err);
     }
   };
 

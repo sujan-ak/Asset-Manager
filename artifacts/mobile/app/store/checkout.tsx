@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -17,11 +17,15 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
+import { useAuth } from "@/context/AuthContextSupabase";
+import { supabase } from "@/lib/supabase";
 
 export default function CheckoutScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { items, total, clearCart } = useCart();
+  const { items, total, clearCart, removeFromCart } = useCart();
+  const { user } = useAuth();
+
   const [name, setName] = useState("");
   const [address, setAddress] = useState("");
   const [city, setCity] = useState("");
@@ -29,21 +33,114 @@ export default function CheckoutScreen() {
   const [loading, setLoading] = useState(false);
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  // TODO: Integrate real payment gateway (Razorpay recommended for India)
-  // before production release. Current flow is DEMO ONLY.
+  const hasPhysical = items.some((i) => i.product.category === "physical");
+
+  // Navigate back automatically when the user removes all items from the cart
+  useEffect(() => {
+    if (items.length === 0) router.back();
+  }, [items.length]);
+
+  useEffect(() => {
+    async function loadProfile() {
+      if (!user?.id) return;
+      try {
+        const { data } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        if (data?.full_name) {
+          setName(data.full_name);
+        }
+      } catch (err) {
+        console.error("Profile load error:", err);
+      }
+    }
+    loadProfile();
+  }, [user?.id]);
+
   async function handleOrder() {
-    if (!name || !address || !city || !phone) {
-      Alert.alert("Incomplete", "Please fill in all fields.");
+    if (hasPhysical && (!name || !address || !city || !phone)) {
+      Alert.alert("Incomplete", "Please fill in all shipping details.");
       return;
     }
+    if (!hasPhysical && (!name || !phone)) {
+      Alert.alert("Incomplete", "Please fill in your name and phone number.");
+      return;
+    }
+
+    if (!user?.id) {
+      Alert.alert("Authentication Required", "Please log in to place an order.");
+      return;
+    }
+
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
-    setLoading(false);
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    clearCart();
-    Alert.alert("Demo Order Placed!", "This is a test order — no payment was charged.", [
-      { text: "OK", onPress: () => router.replace("/(tabs)") },
-    ]);
+    try {
+      // 1. Insert order into the database
+      const { error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          user_id: user.id,
+          total_amount: total,
+          status: 'completed',
+          shipping_address: {
+            name,
+            address,
+            city,
+            phone,
+          },
+          items: items.map(item => ({
+            product_id: item.product.id,
+            title: item.product.title,
+            price: item.product.price,
+            quantity: item.quantity,
+          })),
+        });
+
+      if (orderError) throw orderError;
+
+      // 2. Enroll user in purchased courses
+      for (const item of items) {
+        try {
+          const { data: dbProd } = await supabase
+            .from('products')
+            .select('is_course, course_id')
+            .eq('id', item.product.id)
+            .maybeSingle();
+
+          if (dbProd && (dbProd.is_course || dbProd.course_id)) {
+            const courseId = dbProd.course_id || item.product.id;
+            const { error: enrollError } = await supabase
+              .from('enrollments')
+              .upsert({
+                user_id: user.id,
+                course_id: Number(courseId),
+                payment_status: 'completed',
+                status: 'active',
+                enrolled_at: new Date().toISOString(),
+              }, { onConflict: 'user_id,course_id' });
+
+            if (enrollError) {
+              console.error('[Checkout] Enrollment failed for course:', courseId, enrollError);
+            }
+          }
+        } catch (e) {
+          console.error('[Checkout] Error checking course enrollment for product:', item.product.id, e);
+        }
+      }
+
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      clearCart();
+      Alert.alert("Order Placed Successfully!", "Your order has been recorded.", [
+        { text: "View Orders", onPress: () => router.replace("/store/orders") },
+        { text: "OK", onPress: () => router.replace("/(tabs)") },
+      ]);
+    } catch (err: any) {
+      console.error('[Checkout] Place order failed:', err);
+      Alert.alert("Order Error", err.message || "Failed to place your order. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   if (items.length === 0) {
@@ -61,7 +158,7 @@ export default function CheckoutScreen() {
     );
   }
 
-  const hasPhysical = items.some((i) => i.product.category === "physical");
+
 
   return (
     <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : "height"}>
@@ -90,6 +187,13 @@ export default function CheckoutScreen() {
                 <Text style={[styles.orderItemPrice, { color: colors.primary }]}>
                   ₹{item.product.price} × {item.quantity}
                 </Text>
+                <Pressable
+                  onPress={() => removeFromCart(String(item.product.id))}
+                  style={styles.removeBtn}
+                  hitSlop={8}
+                >
+                  <Feather name="trash-2" size={16} color="#ef4444" />
+                </Pressable>
               </View>
             ))}
             <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
@@ -98,8 +202,8 @@ export default function CheckoutScreen() {
             </View>
           </View>
 
-          {/* Delivery details for physical items */}
-          {hasPhysical && (
+          {/* Delivery details or Contact details depending on product type */}
+          {hasPhysical ? (
             <>
               <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Delivery Details</Text>
               {[
@@ -123,14 +227,32 @@ export default function CheckoutScreen() {
                 </View>
               ))}
             </>
+          ) : (
+            <>
+              <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Contact Details</Text>
+              {[
+                { label: "Full Name", value: name, setter: setName, placeholder: "Your full name", keyboard: "default" as const },
+                { label: "Phone", value: phone, setter: setPhone, placeholder: "10-digit mobile number", keyboard: "phone-pad" as const },
+              ].map((field) => (
+                <View key={field.label} style={styles.fieldGroup}>
+                  <Text style={[styles.label, { color: colors.foreground }]}>{field.label}</Text>
+                  <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: colors.border }]}>
+                    <TextInput
+                      style={[styles.input, { color: colors.foreground }]}
+                      value={field.value}
+                      onChangeText={field.setter}
+                      placeholder={field.placeholder}
+                      placeholderTextColor={colors.mutedForeground}
+                      keyboardType={field.keyboard}
+                    />
+                  </View>
+                </View>
+              ))}
+            </>
           )}
 
           {/* Payment method */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Payment Method</Text>
-          <View style={[styles.demoModeCard, { backgroundColor: "#FEF3C7", borderColor: "#F59E0B" }]}>
-            <Feather name="alert-triangle" size={18} color="#92400E" />
-            <Text style={[styles.demoModeText, { color: "#92400E" }]}>Demo Mode — No real payment will be processed</Text>
-          </View>
           <View style={[styles.paymentCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
             <Feather name="credit-card" size={20} color={colors.primary} />
             <Text style={[styles.paymentText, { color: colors.primary }]}>UPI / Debit / Credit Card</Text>
@@ -154,7 +276,7 @@ export default function CheckoutScreen() {
               <ActivityIndicator color="#FFF" />
             ) : (
               <>
-                <Text style={styles.orderBtnText}>Place Order (Demo) · ₹{total}</Text>
+                <Text style={styles.orderBtnText}>Place Order · ₹{total}</Text>
                 <Feather name="arrow-right" size={18} color="#FFF" />
               </>
             )}
@@ -183,7 +305,8 @@ const styles = StyleSheet.create({
   headerTitle: { fontSize: 18, fontWeight: "700" },
   sectionTitle: { fontSize: 17, fontWeight: "700", marginTop: 8, marginBottom: 10 },
   card: { borderRadius: 14, borderWidth: 1, padding: 14, gap: 10, marginBottom: 4 },
-  orderItem: { flexDirection: "row", justifyContent: "space-between", gap: 8 },
+  orderItem: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: 8 },
+  removeBtn: { padding: 4 },
   orderItemName: { fontSize: 14, flex: 1 },
   orderItemPrice: { fontSize: 14, fontWeight: "600" },
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 12, borderTopWidth: 1, marginTop: 4 },

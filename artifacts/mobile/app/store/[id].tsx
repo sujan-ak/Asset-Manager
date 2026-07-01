@@ -1,7 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Image,
@@ -14,15 +14,108 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useCart } from "@/context/CartContext";
-import { PRODUCTS } from "@/data/mockData";
+import { PRODUCTS, Product } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
+import { ActivityIndicator } from "react-native";
+
+const productFallbacks: Record<string, any[]> = {
+  physical: [
+    require('@/assets/images/product_kit_1.png'),
+    require('@/assets/images/product_kit_2.png'),
+    require('@/assets/images/product_kit_3.png'),
+  ],
+  digital: [
+    require('@/assets/images/product_notes_1.png'),
+    require('@/assets/images/product_notes_2.png'),
+    require('@/assets/images/product_notes_3.png'),
+  ]
+};
+
+function mapSupabaseProduct(row: any): Product {
+  const isDigital = row.category?.toLowerCase() === 'digital' || 
+                    row.subcategory?.toLowerCase() === 'notes' ||
+                    row.subcategory?.toLowerCase() === 'question banks' ||
+                    row.subcategory?.toLowerCase() === 'premium resources';
+  const category = isDigital ? 'digital' : 'physical';
+  
+  let subcategory = row.subcategory;
+  if (!subcategory) {
+    subcategory = isDigital ? "Notes" : "Physical Kits";
+  }
+
+  let hash = 0;
+  const idStr = String(row.id);
+  for (let i = 0; i < idStr.length; i++) {
+    hash = idStr.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash);
+
+  const thumbnail = row.thumbnail_url 
+    ? { uri: row.thumbnail_url } 
+    : (productFallbacks[category] || productFallbacks.physical)[index % 3];
+
+  return {
+    id: String(row.id),
+    title: row.title || "Untitled Product",
+    category,
+    subcategory,
+    price: Number(row.price) || 0,
+    originalPrice: Number(row.original_price) || Number(row.price) || 0,
+    thumbnail,
+    description: row.description || "No description available.",
+    rating: Number(row.rating) || 4.5,
+    reviews: Number(row.total_reviews) || 0,
+    inStock: row.in_stock === undefined ? true : Boolean(row.in_stock),
+    badge: row.badge || undefined,
+    features: Array.isArray(row.features) ? row.features : [],
+  };
+}
 
 export default function ProductDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
   const { addToCart, items } = useCart();
-  const product = PRODUCTS.find((p) => p.id === id);
+
+  const [product, setProduct] = useState<Product | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadProduct() {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('products')
+          .select('*')
+          .eq('id', id)
+          .single();
+
+        if (error) {
+          console.error('[ProductDetail] Error loading product:', error);
+          return;
+        }
+
+        if (data) {
+          setProduct(mapSupabaseProduct(data));
+        }
+      } catch (err) {
+        console.error('[ProductDetail] load error:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadProduct();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!product) {
     return (

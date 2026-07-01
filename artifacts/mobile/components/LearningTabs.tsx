@@ -62,7 +62,7 @@ export function LearningTabs({ module }: LearningTabsProps) {
       <View style={[styles.tabHeaders, { borderBottomColor: colors.border }]}>
         {[
           { key: "overview", label: "Overview", icon: "book-open" },
-          ...(courseQuiz ? [{ key: "quiz", label: "Quiz", icon: "help-circle" }] : []),
+          { key: "quiz", label: "Quiz", icon: "help-circle" },
           { key: "resources", label: "Resources", icon: "download" },
           { key: "notes", label: "Notes", icon: "edit-3" },
         ].map((tab) => (
@@ -114,57 +114,29 @@ export function LearningTabs({ module }: LearningTabsProps) {
           </View>
         )}
 
-        {activeTab === "quiz" && courseQuiz && (
+        {activeTab === "quiz" && (
           <View style={styles.quizContent}>
-            {!inQuiz ? (
-              <View style={styles.quizIntro}>
-                <View style={[styles.quizIconContainer, { backgroundColor: colors.accent }]}>
-                  <Feather name="award" size={48} color={colors.primary} />
-                </View>
-                <Text style={[styles.quizTitle, { color: colors.foreground }]}>
-                  {courseQuiz.title}
-                </Text>
-                <Text style={[styles.quizDescription, { color: colors.mutedForeground }]}>
-                  Test your knowledge with {courseQuiz.questions.length} questions
-                </Text>
-                <View style={styles.quizMeta}>
-                  <View style={styles.quizMetaItem}>
-                    <Feather name="list" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.quizMetaText, { color: colors.mutedForeground }]}>
-                      {courseQuiz.questions.length} Questions
-                    </Text>
-                  </View>
-                  <View style={styles.quizMetaItem}>
-                    <Feather name="clock" size={16} color={colors.mutedForeground} />
-                    <Text style={[styles.quizMetaText, { color: colors.mutedForeground }]}>
-                      {courseQuiz.timeLimit / 60} Minutes
-                    </Text>
-                  </View>
-                </View>
-                <Pressable
-                  style={[styles.startQuizBtn, { backgroundColor: colors.primary }]}
-                  onPress={() => {
-                    setInQuiz(true);
-                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  }}
-                >
-                  <Text style={styles.startQuizBtnText}>Start Quiz</Text>
-                  <Feather name="arrow-right" size={18} color="#FFF" />
-                </Pressable>
+            <View style={styles.quizIntro}>
+              <View style={[styles.quizIconContainer, { backgroundColor: colors.accent }]}>
+                <Feather name="award" size={48} color={colors.primary} />
               </View>
-            ) : (
-              <View style={styles.quizInProgress}>
-                <Text style={[styles.quizInProgressText, { color: colors.foreground }]}>
-                  Quiz feature coming soon! Full quiz implementation will be added in the next update.
-                </Text>
-                <Pressable
-                  style={[styles.exitQuizBtn, { backgroundColor: colors.muted }]}
-                  onPress={() => setInQuiz(false)}
-                >
-                  <Text style={[styles.exitQuizBtnText, { color: colors.foreground }]}>Exit Quiz</Text>
-                </Pressable>
-              </View>
-            )}
+              <Text style={[styles.quizTitle, { color: colors.foreground }]}>
+                Lesson Quiz
+              </Text>
+              <Text style={[styles.quizDescription, { color: colors.mutedForeground }]}>
+                Test your knowledge of "{module.title}"
+              </Text>
+              <Pressable
+                style={[styles.startQuizBtn, { backgroundColor: colors.primary }]}
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  router.push({ pathname: "/quiz/[id]", params: { id: module.id } });
+                }}
+              >
+                <Text style={styles.startQuizBtnText}>Start Quiz</Text>
+                <Feather name="arrow-right" size={18} color="#FFF" />
+              </Pressable>
+            </View>
           </View>
         )}
 

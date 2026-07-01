@@ -6,6 +6,7 @@ import {
   UserCourseProgress,
   VideoProgress,
   WatchlistItem,
+  fetchRemoteProgress,
 } from "@/lib/progressStorage";
 import { ProgressCalculator } from "@/lib/progressCalculator";
 import * as courseDataProvider from "@/services/courseDataProvider";
@@ -54,7 +55,17 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
 
     setIsLoading(true);
     try {
-      const allProgress = await ProgressStorage.loadAllCourseProgress(user.id);
+      let allProgress = await fetchRemoteProgress(user.id);
+      
+      if (!allProgress || allProgress.length === 0) {
+        allProgress = await ProgressStorage.loadAllCourseProgress(user.id);
+      } else {
+        // Save to local storage for offline use
+        for (const p of allProgress) {
+          await ProgressStorage.saveCourseProgress(p);
+        }
+      }
+
       const progressMap = new Map<string, UserCourseProgress>();
       allProgress.forEach((p) => progressMap.set(p.courseId, p));
       setCourseProgress(progressMap);

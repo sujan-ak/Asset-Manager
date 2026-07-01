@@ -1,5 +1,6 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { supabase } from './supabase';
+import { getCourseModules } from '@/services/courseDataProvider';
 
 export interface UserCourseProgress {
   userId: string;
@@ -172,7 +173,7 @@ export async function fetchCourseProgress(userId: string, courseId: string) {
   const { data: modules } = await supabase
     .from('modules')
     .select('id')
-    .eq('course_id', courseId);
+    .eq('course_id', Number(courseId));
   const moduleIds = (modules ?? []).map((m) => m.id);
   if (moduleIds.length === 0) return { completed: 0, total: 0, percentage: 0 };
 
@@ -199,8 +200,123 @@ export async function fetchCourseLessonsProgress(userId: string, courseId: strin
     .from('lesson_progress')
     .select('lesson_id, current_time_secs, watch_percentage, is_completed')
     .eq('user_id', userId)
-    .eq('course_id', courseId);
+    .eq('course_id', Number(courseId));
   if (error) throw error;
   return data ?? [];
+}
+
+export async function fetchRemoteProgress(userId: string): Promise<UserCourseProgress[]> {
+  try {
+    const { data: enrollments, error: enrollError } = await supabase
+      .from('enrollments')
+      .select('course_id, enrolled_at, completed_at')
+      .eq('user_id', userId);
+
+    if (enrollError || !enrollments) return [];
+
+    const { data: lessonProgress, error: progressError } = await supabase
+      .from('lesson_progress')
+      .select('lesson_id, course_id, current_time_secs, watch_percentage, time_spent_secs, is_completed, last_watched_at')
+      .eq('user_id', userId);
+
+    const progressList = lessonProgress ?? [];
+    const results: UserCourseProgress[] = [];
+
+    for (const enrollment of enrollments) {
+      const courseId = String(enrollment.course_id);
+      const modules = await getCourseModules(courseId);
+
+      const courseProgressObj: UserCourseProgress = {
+        userId,
+        courseId,
+        progress: 0,
+        enrolledAt: enrollment.enrolled_at || new Date().toISOString(),
+        lastAccessedAt: enrollment.enrolled_at || new Date().toISOString(),
+        completedAt: enrollment.completed_at || undefined,
+        totalTimeSpent: 0,
+        modules: {},
+      };
+
+      let totalLessons = 0;
+      let completedLessons = 0;
+
+      modules.forEach((mod: any) => {
+        const modLessons = mod.lessons ?? [];
+        totalLessons += modLessons.length;
+
+        let modTimeSpent = 0;
+        let modLastAccessed = enrollment.enrolled_at || new Date().toISOString();
+        let modIsCompleted = modLessons.length > 0;
+        let modIsStarted = false;
+
+        modLessons.forEach((les: any) => {
+          const lp = progressList.find((p) => String(p.lesson_id) === String(les.id));
+          if (lp) {
+            modTimeSpent += lp.time_spent_secs || 0;
+            if (lp.last_watched_at && new Date(lp.last_watched_at) > new Date(modLastAccessed)) {
+              modLastAccessed = lp.last_watched_at;
+            }
+            if (lp.is_completed) {
+              completedLessons++;
+            } else {
+              modIsCompleted = false;
+            }
+            if (lp.watch_percentage > 0) {
+              modIsStarted = true;
+            }
+          } else {
+            modIsCompleted = false;
+          }
+        });
+
+        if (modLessons.length === 0) {
+          modIsCompleted = false;
+          modIsStarted = false;
+        }
+
+        const firstLesson = modLessons[0];
+        const lastWatchedLesson = modLessons.find((les: any) => {
+          const lp = progressList.find((p) => String(p.lesson_id) === String(les.id));
+          return lp && !lp.is_completed;
+        }) || firstLesson;
+
+        const lp = lastWatchedLesson ? progressList.find((p) => String(p.lesson_id) === String(lastWatchedLesson.id)) : null;
+
+        courseProgressObj.modules[mod.id] = {
+          moduleId: mod.id,
+          isCompleted: modIsCompleted,
+          isStarted: modIsStarted,
+          videoProgress: {
+            videoUrl: lastWatchedLesson?.video_url || "",
+            currentTime: lp?.current_time_secs || 0,
+            duration: lp?.current_time_secs ? Math.round(lp.current_time_secs / ((lp.watch_percentage || 1) / 100)) : 0,
+            watchedPercentage: lp?.watch_percentage || 0,
+            isCompleted: lp?.is_completed || false,
+            lastWatchedAt: lp?.last_watched_at || modLastAccessed,
+          },
+          lastAccessedAt: modLastAccessed,
+          completedAt: modIsCompleted ? modLastAccessed : undefined,
+          timeSpent: modTimeSpent,
+        };
+
+        courseProgressObj.totalTimeSpent += modTimeSpent;
+        if (new Date(modLastAccessed) > new Date(courseProgressObj.lastAccessedAt)) {
+          courseProgressObj.lastAccessedAt = modLastAccessed;
+        }
+      });
+
+      courseProgressObj.progress = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
+      if (courseProgressObj.progress === 100 && !courseProgressObj.completedAt) {
+        courseProgressObj.completedAt = courseProgressObj.lastAccessedAt;
+      }
+
+      results.push(courseProgressObj);
+    }
+
+    return results;
+  } catch (err) {
+    console.error('[progressStorage] fetchRemoteProgress failed:', err);
+    return [];
+  }
 }
 

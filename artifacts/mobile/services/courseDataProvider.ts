@@ -4,7 +4,7 @@ export async function getCourseById(courseId: string) {
   const { data, error } = await supabase
     .from('courses')
     .select('id, title, slug, category, level, price, is_free, thumbnail_url, description')
-    .eq('id', courseId)
+    .eq('id', Number(courseId))
     .eq('is_published', true)
     .single();
   if (error) throw error;
@@ -15,7 +15,7 @@ export async function getCourseModules(courseId: string) {
   const { data: modules, error: modulesError } = await supabase
     .from('modules')
     .select('id, title, order_index')
-    .eq('course_id', courseId)
+    .eq('course_id', Number(courseId))
     .order('order_index', { ascending: true });
 
   if (modulesError || !modules || modules.length === 0) return [];

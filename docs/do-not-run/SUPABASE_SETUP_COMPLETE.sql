@@ -1,6 +1,7 @@
 -- =====================================================
 -- EDODWAJA LMS - COMPLETE SUPABASE DATABASE SETUP
 -- Run this in Supabase SQL Editor
+-- WARNING: DO NOT RUN THIS ON THE LIVE DATABASE
 -- =====================================================
 
 -- 1. Enable UUID extension

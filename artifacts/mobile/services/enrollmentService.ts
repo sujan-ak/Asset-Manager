@@ -4,7 +4,7 @@ export async function enrollInCourse(userId: string, courseId: string, isFree: b
   const { error } = await supabase.from('enrollments').upsert(
     {
       user_id: userId,
-      course_id: courseId,
+      course_id: Number(courseId),
       payment_status: isFree ? 'completed' : 'pending',
     },
     { onConflict: 'user_id,course_id' },
@@ -28,7 +28,7 @@ export async function isEnrolled(userId: string, courseId: string): Promise<bool
     .from('enrollments')
     .select('id')
     .eq('user_id', userId)
-    .eq('course_id', courseId)
+    .eq('course_id', Number(courseId))
     .maybeSingle();
   return !!data;
 }
