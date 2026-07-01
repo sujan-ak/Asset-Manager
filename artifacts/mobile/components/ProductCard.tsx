@@ -48,7 +48,7 @@ export function ProductCard({ product, onAddedToCart, gridMode = false }: Produc
       style={({ pressed }) => [
         styles.card,
         gridMode && styles.gridCard,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+        { opacity: pressed ? 0.7 : 1 },
       ]}
       onPress={() => router.push({ pathname: "/store/[id]", params: { id: product.id } })}
     >
@@ -111,15 +111,7 @@ export function ProductCard({ product, onAddedToCart, gridMode = false }: Produc
 const styles = StyleSheet.create({
   card: {
     width: CARD_WIDTH,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
     marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   gridCard: {
     marginRight: 0,
@@ -127,6 +119,8 @@ const styles = StyleSheet.create({
   },
   imageContainer: {
     position: "relative",
+    borderRadius: 8,
+    overflow: "hidden",
   },
   thumbnail: {
     width: "100%",

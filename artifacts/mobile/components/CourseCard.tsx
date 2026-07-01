@@ -143,7 +143,7 @@ export function CourseCard({ course, horizontal = false, compact = false }: Cour
     <Pressable
       style={({ pressed }) => [
         compact ? styles.compactCard : styles.card,
-        { backgroundColor: colors.card, borderColor: colors.border, opacity: pressed ? 0.9 : 1 },
+        { opacity: pressed ? 0.7 : 1 },
       ]}
       onPress={() => router.push({ pathname: "/course/[id]", params: { id: course.id } })}
     >
@@ -203,40 +203,25 @@ const styles = StyleSheet.create({
   // Vertical card - borderless modern style
   card: {
     width: CARD_WIDTH,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
     marginRight: 16,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   compactCard: {
     width: 170,
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: "hidden",
     marginRight: 12,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 3,
   },
   thumbnailContainer: {
     position: "relative",
+    borderRadius: 8,
     overflow: "hidden",
   },
   thumbnail: {
     width: "100%",
-    height: 120,
+    height: 110,
     resizeMode: "cover",
   },
   compactThumbnail: {
     width: "100%",
-    height: 120,
+    height: 85,
     resizeMode: "cover",
   },
   badge: {

@@ -1,16 +1,40 @@
 import { Feather } from "@expo/vector-icons";
 import { router, useLocalSearchParams } from "expo-router";
-import React from "react";
-import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import React, { useState, useEffect } from "react";
+import { Image, Platform, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { NEWS_ITEMS } from "@/data/mockData";
+import { fetchNewsById, type NewsArticle } from "@/services/newsService";
 import { useColors } from "@/hooks/useColors";
 
 export default function NewsDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const item = NEWS_ITEMS.find((n) => n.id === id);
+  const [item, setItem] = useState<NewsArticle | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadArticle() {
+      if (!id) return;
+      try {
+        const article = await fetchNewsById(id);
+        setItem(article);
+      } catch (err) {
+        console.error('[NewsDetailScreen] Error loading article:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadArticle();
+  }, [id]);
+
+  if (isLoading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!item) {
     return (
@@ -67,12 +91,6 @@ export default function NewsDetailScreen() {
           </View>
 
           <Text style={[styles.body, { color: colors.foreground }]}>{item.content}</Text>
-          <Text style={[styles.body, { color: colors.foreground }]}>
-            This initiative is expected to benefit students across both urban and rural areas, providing them with modern educational tools and infrastructure to compete at a global level. Educational institutions are being encouraged to adopt new curricula that incorporate critical thinking, problem-solving, and technological proficiency.
-          </Text>
-          <Text style={[styles.body, { color: colors.foreground }]}>
-            Experts in the field believe this shift in educational approach will have long-lasting effects on the country's workforce, preparing the next generation of innovators, engineers, and scientists who will drive India's technological growth in the coming decades.
-          </Text>
 
           <View style={styles.tags}>
             {item.tags.map((tag) => (

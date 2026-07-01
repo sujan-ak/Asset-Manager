@@ -1,21 +1,37 @@
-import React, { useState } from "react";
-import { Platform, ScrollView, StyleSheet, Text, View, Pressable } from "react-native";
+import React, { useState, useEffect } from "react";
+import { Platform, ScrollView, StyleSheet, Text, View, Pressable, ActivityIndicator } from "react-native";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { NewsCard } from "@/components/NewsCard";
 import { SearchBar } from "@/components/SearchBar";
-import { NEWS_ITEMS } from "@/data/mockData";
+import { fetchAllNews, type NewsArticle } from "@/services/newsService";
 import { useColors } from "@/hooks/useColors";
 
 export default function NewsScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const [search, setSearch] = useState("");
+  const [news, setNews] = useState<NewsArticle[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadNews() {
+      try {
+        const data = await fetchAllNews();
+        setNews(data);
+      } catch (err) {
+        console.error('[NewsScreen] Error loading news:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadNews();
+  }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
-  const filtered = NEWS_ITEMS.filter(
+  const filtered = news.filter(
     (n) =>
       n.title.toLowerCase().includes(search.toLowerCase()) ||
       n.category.toLowerCase().includes(search.toLowerCase())
@@ -38,21 +54,27 @@ export default function NewsScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={[
-          styles.list,
-          { paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 },
-        ]}
-        showsVerticalScrollIndicator={false}
-      >
-        {filtered.length === 0 ? (
-          <View style={styles.empty}>
-            <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No results found</Text>
-          </View>
-        ) : (
-          filtered.map((item) => <NewsCard key={item.id} item={item} />)
-        )}
-      </ScrollView>
+      {isLoading ? (
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      ) : (
+        <ScrollView
+          contentContainerStyle={[
+            styles.list,
+            { paddingBottom: Platform.OS === "web" ? 100 : insets.bottom + 100 },
+          ]}
+          showsVerticalScrollIndicator={false}
+        >
+          {filtered.length === 0 ? (
+            <View style={styles.empty}>
+              <Text style={[styles.emptyTitle, { color: colors.foreground }]}>No results found</Text>
+            </View>
+          ) : (
+            filtered.map((item) => <NewsCard key={item.id} item={item} />)
+          )}
+        </ScrollView>
+      )}
     </View>
   );
 }
@@ -79,4 +101,5 @@ const styles = StyleSheet.create({
   list: { paddingHorizontal: 20, paddingTop: 16 },
   empty: { alignItems: "center", paddingTop: 60 },
   emptyTitle: { fontSize: 18, fontWeight: "700" },
+  loadingContainer: { flex: 1, justifyContent: "center", alignItems: "center" },
 });
