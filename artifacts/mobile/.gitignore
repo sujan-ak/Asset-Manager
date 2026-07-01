@@ -39,3 +39,6 @@ yarn-error.*
 .vercel
 
 .env
+.agents/
+
+docs/

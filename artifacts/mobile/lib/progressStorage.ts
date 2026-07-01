@@ -1,4 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { supabase } from './supabase';
 
 export interface UserCourseProgress {
   userId: string;
@@ -128,3 +129,78 @@ export const ProgressStorage = {
     }
   },
 };
+
+export async function markLessonComplete(userId: string, courseId: string, lessonId: string) {
+  const { error } = await supabase.from('lesson_progress').upsert(
+    {
+      user_id: userId,
+      lesson_id: Number(lessonId),
+      course_id: courseId,
+      is_completed: true,
+      watch_percentage: 100,
+      last_watched_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,lesson_id' },
+  );
+  if (error) throw error;
+}
+
+export async function upsertLessonProgress(
+  userId: string,
+  courseId: string,
+  lessonId: string,
+  currentTimeSecs: number,
+  watchPercentage: number,
+) {
+  const { error } = await supabase.from('lesson_progress').upsert(
+    {
+      user_id: userId,
+      lesson_id: Number(lessonId),
+      course_id: courseId,
+      current_time_secs: Math.floor(currentTimeSecs),
+      watch_percentage: Math.round(watchPercentage),
+      time_spent_secs: Math.floor(currentTimeSecs),
+      is_completed: watchPercentage >= 90,
+      last_watched_at: new Date().toISOString(),
+    },
+    { onConflict: 'user_id,lesson_id' },
+  );
+  if (error) console.error('[progress] upsert error', error);
+}
+
+export async function fetchCourseProgress(userId: string, courseId: string) {
+  const { data: modules } = await supabase
+    .from('modules')
+    .select('id')
+    .eq('course_id', courseId);
+  const moduleIds = (modules ?? []).map((m) => m.id);
+  if (moduleIds.length === 0) return { completed: 0, total: 0, percentage: 0 };
+
+  const { data: lessons } = await supabase
+    .from('lessons')
+    .select('id')
+    .in('module_id', moduleIds);
+  const lessonIds = (lessons ?? []).map((l) => l.id);
+  if (lessonIds.length === 0) return { completed: 0, total: 0, percentage: 0 };
+
+  const { data: progress } = await supabase
+    .from('lesson_progress')
+    .select('lesson_id, is_completed')
+    .eq('user_id', userId)
+    .in('lesson_id', lessonIds);
+
+  const completed = (progress ?? []).filter((p) => p.is_completed).length;
+  const total = lessonIds.length;
+  return { completed, total, percentage: total ? Math.round((completed / total) * 100) : 0 };
+}
+
+export async function fetchCourseLessonsProgress(userId: string, courseId: string) {
+  const { data, error } = await supabase
+    .from('lesson_progress')
+    .select('lesson_id, current_time_secs, watch_percentage, is_completed')
+    .eq('user_id', userId)
+    .eq('course_id', courseId);
+  if (error) throw error;
+  return data ?? [];
+}
+

@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import React from "react";
+import React, { useState, useEffect } from "react";
 import {
   Platform,
   Pressable,
@@ -8,27 +8,80 @@ import {
   StyleSheet,
   Text,
   View,
+  ActivityIndicator,
+  Dimensions,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+
+const SCREEN_WIDTH = Dimensions.get("window").width;
+const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
+const SNAP_INTERVAL = CARD_WIDTH + 16;
 import { CourseCard } from "@/components/CourseCard";
 import { SectionHeader } from "@/components/SectionHeader";
 import { WatchlistCard } from "@/components/WatchlistCard";
 import { LearningStreak } from "@/components/LearningStreak";
 import { ProductCard } from "@/components/ProductCard";
 import { useAuth } from "@/context/AuthContextSupabase";
-import { useProgress } from "@/context/ProgressContext";
-import { COURSES, PRODUCTS } from "@/data/mockData";
+import { PRODUCTS } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
+import { useProgress } from "@/context/ProgressContext";
+import { fetchAllCourses } from "@/services/courseDataProvider";
+import { fetchEnrolledCourses } from "@/services/enrollmentService";
+import { fetchCourseProgress } from "@/lib/progressStorage";
 
 export default function HomeScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { user } = useAuth();
-  const { watchlist, courseProgress } = useProgress();
+  const { watchlist } = useProgress();
 
-  const enrolledCourses = Array.from(courseProgress.values());
+  const [courses, setCourses] = useState<any[]>([]);
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const all = await fetchAllCourses();
+        const mapped = all.map((c: any) => ({
+          id: String(c.id),
+          title: c.title,
+          category: c.category || "General",
+          level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
+          price: c.price || 0,
+          isFree: c.is_free,
+          thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+          instructor: "Edodwaja Instructor",
+          rating: 4.8,
+          reviews: 120,
+          description: c.description || "",
+          modules: []
+        }));
+        setCourses(mapped);
+
+        if (user?.id) {
+          const enrollments = await fetchEnrolledCourses(user.id);
+          const mappedEnrolled = await Promise.all(
+            enrollments.map(async (enr: any) => {
+              const c = enr.courses;
+              const prog = await fetchCourseProgress(user.id, String(c.id));
+              return {
+                progress: prog.percentage,
+              };
+            })
+          );
+          setEnrolledCourses(mappedEnrolled);
+        }
+      } catch (err) {
+        console.error('[Home] Error fetching courses:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [user?.id]);
+
   const completedCount = enrolledCourses.filter((p) => p.progress === 100).length;
-  const inProgressCount = enrolledCourses.filter((p) => p.progress > 0 && p.progress < 100).length;
   const avgProgress =
     enrolledCourses.length > 0
       ? Math.round(
@@ -40,6 +93,14 @@ export default function HomeScreen() {
   const learningStreak = 5;
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -139,7 +200,7 @@ export default function HomeScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.carouselContent}
           >
-            {watchlist.map((item) => (
+            {watchlist.map((item: any) => (
               <WatchlistCard key={`${item.courseId}-${item.moduleId}`} item={item} />
             ))}
           </ScrollView>
@@ -155,10 +216,10 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.carouselContent}
-          snapToInterval={276}
+          snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
-          {COURSES.filter(course => course.category === "Robotics").slice(0, 5).map((course) => (
+          {courses.filter(course => course.category === "Robotics").slice(0, 5).map((course) => (
             <CourseCard key={course.id} course={course} />
           ))}
           <Pressable 
@@ -184,10 +245,10 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.carouselContent}
-          snapToInterval={276}
+          snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
-          {COURSES.filter(course => course.category === "Electronics").slice(0, 5).map((course) => (
+          {courses.filter(course => course.category === "Electronics").slice(0, 5).map((course) => (
             <CourseCard key={course.id} course={course} />
           ))}
           <Pressable 
@@ -270,10 +331,10 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.carouselContent}
-          snapToInterval={276}
+          snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
-          {COURSES.filter(course => course.category === "IoT").slice(0, 5).map((course) => (
+          {courses.filter(course => course.category === "IoT").slice(0, 5).map((course) => (
             <CourseCard key={course.id} course={course} />
           ))}
           <Pressable 
@@ -324,15 +385,15 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.carouselContent}
-          snapToInterval={276}
+          snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
           {[
-            COURSES.find(c => c.category === "Robotics"),
-            COURSES.find(c => c.category === "Electronics"),
-            COURSES.find(c => c.category === "IoT"),
-            COURSES.find(c => c.category === "Embedded Systems"),
-            COURSES.find(c => c.category === "Arduino & Projects"),
+            courses.find(c => c.category === "Robotics"),
+            courses.find(c => c.category === "Electronics"),
+            courses.find(c => c.category === "IoT"),
+            courses.find(c => c.category === "Embedded Systems"),
+            courses.find(c => c.category === "Arduino & Projects"),
           ].filter(Boolean).map((course) => (
             <CourseCard key={course!.id} course={course!} />
           ))}
@@ -356,7 +417,7 @@ export default function HomeScreen() {
           horizontal 
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.carouselContent}
-          snapToInterval={200}
+          snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
           {PRODUCTS.filter(p => p.category === "physical").slice(0, 5).map((product) => (

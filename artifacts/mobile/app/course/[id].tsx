@@ -16,22 +16,28 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Badge } from "@/components/Badge";
 import { FavoriteButton } from "@/components/FavoriteButton";
-import { COURSES, QUIZZES } from "@/data/mockData";
+import { QUIZZES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
-import { useProgress } from "@/context/ProgressContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useFavorites } from "@/context/FavoritesContext";
-import { ProgressCalculator } from "@/lib/progressCalculator";
+import { getCourseById, getCourseModules } from "@/services/courseDataProvider";
+import { enrollInCourse, isEnrolled as checkEnrollment } from "@/services/enrollmentService";
+import { fetchCourseLessonsProgress } from "@/lib/progressStorage";
+import { ActivityIndicator } from "react-native";
 
 export default function CourseDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { getCourseProgress, enrollCourse } = useProgress();
+  const { user } = useAuth();
   const { isFavoriteCourse, toggleFavoriteCourse } = useFavorites();
-  const course = COURSES.find((c) => c.id === id);
-  const courseProgress = course ? getCourseProgress(course.id) : null;
+
+  const [course, setCourse] = useState<any>(null);
+  const [modules, setModules] = useState<any[]>([]); // flat lessons
+  const [lessonsProgress, setLessonsProgress] = useState<any[]>([]);
+  const [isEnrolled, setIsEnrolled] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
-  const isEnrolled = !!courseProgress;
   const isFavorite = course ? isFavoriteCourse(course.id) : false;
 
   const showToast = (message: string) => {
@@ -43,10 +49,65 @@ export default function CourseDetailScreen() {
   };
 
   useEffect(() => {
-    if (course?.isPurchased && !courseProgress) {
-      enrollCourse(course.id);
+    async function loadCourse() {
+      if (!id) return;
+      setIsLoading(true);
+      try {
+        const courseData = await getCourseById(id);
+        if (courseData) {
+          const mappedCourse = {
+            id: String(courseData.id),
+            title: courseData.title,
+            category: courseData.category || "General",
+            level: courseData.level ? (courseData.level.charAt(0).toUpperCase() + courseData.level.slice(1)) : "Beginner",
+            price: courseData.price || 0,
+            isFree: courseData.is_free,
+            thumbnail: courseData.thumbnail_url ? { uri: courseData.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+            instructor: "Edodwaja Instructor",
+            rating: 4.8,
+            reviews: 120,
+            description: courseData.description || "",
+            tags: [courseData.category || "Robotics"],
+          };
+          setCourse(mappedCourse);
+
+          const modulesData = await getCourseModules(id);
+          const flatLessons = modulesData.flatMap((m: any) =>
+            m.lessons.map((l: any) => ({
+              id: l.id,
+              title: l.title,
+              duration: l.duration_minutes ? `${l.duration_minutes} mins` : "0 mins",
+              duration_minutes: l.duration_minutes,
+            }))
+          );
+          setModules(flatLessons);
+
+          if (user?.id) {
+            const enrolledStatus = await checkEnrollment(user.id, id);
+            setIsEnrolled(enrolledStatus);
+
+            if (enrolledStatus) {
+              const progressData = await fetchCourseLessonsProgress(user.id, id);
+              setLessonsProgress(progressData);
+            }
+          }
+        }
+      } catch (error) {
+        console.error("[CourseDetail] load error", error);
+      } finally {
+        setIsLoading(false);
+      }
     }
-  }, [course?.id, course?.isPurchased]);
+    loadCourse();
+  }, [id, user?.id]);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!course) {
     return (
@@ -66,14 +127,16 @@ export default function CourseDetailScreen() {
   }
 
   const quiz = QUIZZES.find((q) => q.courseId === course.id);
-  const progress = courseProgress?.progress || 0;
-  const completedModules = courseProgress
-    ? Object.values(courseProgress.modules).filter((m) => m.isCompleted).length
-    : 0;
-  const remainingModules = course.modules.length - completedModules;
-  const lastModuleId = courseProgress
-    ? ProgressCalculator.getLastAccessedModuleId(courseProgress.modules)
+  const completedModules = lessonsProgress.filter((p) => p.is_completed).length;
+  const progress = modules.length > 0 ? Math.round((completedModules / modules.length) * 100) : 0;
+  const remainingModules = modules.length - completedModules;
+  
+  const lastModuleId = lessonsProgress.length > 0 
+    ? lessonsProgress.sort((a, b) => new Date(b.last_watched_at || 0).getTime() - new Date(a.last_watched_at || 0).getTime())[0]?.lesson_id 
     : null;
+
+  const totalDurationMin = modules.reduce((sum, m) => sum + (m.duration_minutes || 0), 0);
+  const displayDuration = totalDurationMin > 0 ? `${totalDurationMin} mins` : "Self-paced";
   const hasStarted = progress > 0;
 
   const handleFavoriteToggle = () => {
@@ -91,14 +154,17 @@ export default function CourseDetailScreen() {
   };
 
   const handleEnrollNow = async () => {
-    if (!course) return;
+    if (!course || !user?.id) return;
     
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     setIsEnrolling(true);
 
     try {
-      await enrollCourse(course.id);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await enrollInCourse(user.id, course.id, course.isFree);
+      setIsEnrolled(true);
+      
+      const progressData = await fetchCourseLessonsProgress(user.id, course.id);
+      setLessonsProgress(progressData);
       
       Alert.alert(
         "Enrollment Successful! 🎉",
@@ -117,7 +183,7 @@ export default function CourseDetailScreen() {
               setIsEnrolling(false);
               router.push({ 
                 pathname: "/course/learn", 
-                params: { courseId: course.id, moduleId: course.modules[0].id } 
+                params: { courseId: course.id, moduleId: modules[0]?.id || "" } 
               });
             },
           },
@@ -199,7 +265,7 @@ export default function CourseDetailScreen() {
 
           {/* Tags */}
           <View style={styles.tags}>
-            {course.tags.map((tag) => (
+            {course.tags.map((tag: any) => (
               <View key={tag} style={[styles.tag, { backgroundColor: colors.muted }]}>
                 <Text style={[styles.tagText, { color: colors.mutedForeground }]}>{tag}</Text>
               </View>
@@ -228,7 +294,7 @@ export default function CourseDetailScreen() {
               </View>
               <View style={styles.progressStats}>
                 <Text style={[styles.progressSub, { color: colors.foreground }]}>
-                  {completedModules} of {course.modules.length} lessons completed
+                  {completedModules} of {modules.length} lessons completed
                 </Text>
                 {remainingModules > 0 && (
                   <Text style={[styles.progressRemaining, { color: colors.mutedForeground }]}>
@@ -242,12 +308,12 @@ export default function CourseDetailScreen() {
           {/* Curriculum */}
           <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Curriculum</Text>
           <Text style={[styles.curriculumSubtitle, { color: colors.mutedForeground }]}>
-            {course.modules.length} lessons · {course.duration}
+            {modules.length} lessons · {displayDuration}
           </Text>
-          {course.modules.map((mod, idx) => {
-            const modProgress = courseProgress?.modules[mod.id];
-            const isCompleted = modProgress?.isCompleted || false;
-            const watchedPercentage = modProgress?.videoProgress.watchedPercentage || 0;
+          {modules.map((mod, idx) => {
+            const modProgress = lessonsProgress.find((p) => String(p.lesson_id) === mod.id);
+            const isCompleted = modProgress?.is_completed || false;
+            const watchedPercentage = modProgress?.watch_percentage || 0;
 
             return (
               <Pressable
@@ -343,7 +409,7 @@ export default function CourseDetailScreen() {
             style={[styles.ctaBtn, { backgroundColor: progress === 100 ? "#10B981" : colors.primary }]}
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const targetModuleId = lastModuleId || course.modules[0].id;
+              const targetModuleId = lastModuleId ? String(lastModuleId) : (modules[0]?.id || "");
               router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: targetModuleId } });
             }}
           >

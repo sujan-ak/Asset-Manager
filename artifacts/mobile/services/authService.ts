@@ -56,7 +56,7 @@ export async function createProfile(profileData: {
   id: string;
   email: string;
   full_name: string;
-  role: 'student' | 'admin';
+  role: string;
 }) {
   return await supabase
     .from('profiles')

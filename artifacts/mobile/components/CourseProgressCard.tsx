@@ -2,7 +2,7 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React from "react";
-import { Image, Pressable, StyleSheet, Text, View, Animated } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, Animated, Easing } from "react-native";
 import { useColors } from "@/hooks/useColors";
 import { CourseWithProgress } from "@/lib/progressAnalytics";
 
@@ -17,7 +17,8 @@ export function CourseProgressCard({ course }: CourseProgressCardProps) {
   React.useEffect(() => {
     Animated.timing(progressAnim, {
       toValue: course.progress,
-      duration: 800,
+      duration: 350,
+      easing: Easing.out(Easing.quad),
       useNativeDriver: false,
     }).start();
   }, [course.progress]);

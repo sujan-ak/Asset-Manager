@@ -22,7 +22,7 @@ export interface User {
   avatar?: string;
   grade?: string;
   school?: string;
-  role: 'student' | 'admin';
+  role: string;
   joinedDate: string;
 }
 

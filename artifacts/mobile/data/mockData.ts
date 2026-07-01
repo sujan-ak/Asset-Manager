@@ -21,6 +21,7 @@ export interface Course {
   isFree: boolean;
   isPurchased: boolean;
   progress: number;
+  isBestseller?: boolean;
   description: string;
   level: "Beginner" | "Intermediate" | "Advanced";
   modules: Module[];

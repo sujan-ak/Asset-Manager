@@ -1,11 +1,12 @@
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { CourseCard } from "@/components/CourseCard";
 import { ProductCard } from "@/components/ProductCard";
-import { COURSES, PRODUCTS } from "@/data/mockData";
+import { PRODUCTS } from "@/data/mockData";
+import { fetchAllCourses } from "@/services/courseDataProvider";
 import colors from "@/constants/colors";
 
 const POPULAR_TOPICS = ["Robotics", "Arduino", "AI & ML", "IoT", "Python", "Electronics", "Circuits", "3D Printing"];
@@ -27,7 +28,38 @@ export default function SearchScreen() {
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const debounceTimeout = useRef<NodeJS.Timeout | null>(null);
+  const debounceTimeout = useRef<any>(null);
+
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadCourses() {
+      try {
+        const all = await fetchAllCourses();
+        const mapped = all.map((c: any) => ({
+          id: String(c.id),
+          title: c.title,
+          category: c.category || "General",
+          level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
+          price: c.price || 0,
+          isFree: c.is_free,
+          thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+          instructor: "Edodwaja Instructor",
+          rating: 4.8,
+          reviews: 120,
+          description: c.description || "",
+          modules: []
+        }));
+        setCourses(mapped);
+      } catch (err) {
+        console.error('[Search] Error loading courses:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadCourses();
+  }, []);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
@@ -44,7 +76,7 @@ export default function SearchScreen() {
   const query = debouncedQuery;
 
   const filteredCourses = query
-    ? COURSES.filter(
+    ? courses.filter(
         (c) => 
           c.title.toLowerCase().includes(query) || 
           c.category.toLowerCase().includes(query) ||
@@ -104,6 +136,14 @@ export default function SearchScreen() {
   const showIdle = !isFocused && !query;
   const showTyping = isFocused && !query;
   const showResults = query;
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.light.background }}>
+        <ActivityIndicator size="large" color={colors.light.primary} />
+      </View>
+    );
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.light.background }]}>

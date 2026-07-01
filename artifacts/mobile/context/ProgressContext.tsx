@@ -83,8 +83,9 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     const existing = courseProgress.get(courseId);
     if (existing) return;
 
-    const course = courseDataProvider.getCourseById(courseId);
+    const course = await courseDataProvider.getCourseById(courseId);
     if (!course) return;
+    const modules = await courseDataProvider.getCourseModules(courseId);
 
     const newProgress: UserCourseProgress = {
       userId: user.id,
@@ -97,13 +98,13 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     };
 
     // Initialize all modules
-    course.modules.forEach((module) => {
+    modules.forEach((module: any) => {
       newProgress.modules[module.id] = {
         moduleId: module.id,
         isCompleted: false,
         isStarted: false,
         videoProgress: {
-          videoUrl: module.videoUrl,
+          videoUrl: module.lessons[0]?.video_url || "",
           currentTime: 0,
           duration: 0,
           watchedPercentage: 0,
@@ -210,10 +211,10 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
   ): Promise<void> {
     if (!user?.id) return;
 
-    const course = courseDataProvider.getCourseById(courseId);
+    const course = await courseDataProvider.getCourseById(courseId);
     if (!course) return;
-
-    const module = course.modules.find((m) => m.id === moduleId);
+    const modules = await courseDataProvider.getCourseModules(courseId);
+    const module = modules.find((m: any) => m.id === moduleId);
     if (!module) return;
 
     const moduleProgress = progress.modules[moduleId];
@@ -236,7 +237,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         moduleId,
         courseTitle: course.title,
         moduleTitle: module.title,
-        courseThumbnail: course.thumbnail,
+        courseThumbnail: course.thumbnail_url ? { uri: course.thumbnail_url } : require('@/assets/images/course_robotics.png'),
         lastWatchedAt: moduleProgress.lastAccessedAt,
         videoProgress: moduleProgress.videoProgress,
         courseProgress: progress.progress,

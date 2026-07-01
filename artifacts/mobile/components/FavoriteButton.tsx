@@ -1,6 +1,6 @@
 import { MaterialIcons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
-import React, { useRef } from "react";
+import React, { useRef, useEffect } from "react";
 import { Animated, Pressable, StyleSheet } from "react-native";
 import { useColors } from "@/hooks/useColors";
 
@@ -17,25 +17,24 @@ export function FavoriteButton({
 }: FavoriteButtonProps) {
   const colors = useColors();
   const scaleAnim = useRef(new Animated.Value(1)).current;
+  const isFirstMount = useRef(true);
+
+  useEffect(() => {
+    if (isFirstMount.current) {
+      isFirstMount.current = false;
+      return;
+    }
+    scaleAnim.setValue(0.8);
+    Animated.spring(scaleAnim, {
+      toValue: 1,
+      friction: 4,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  }, [isFavorite]);
 
   const handlePress = async (event: any) => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-    Animated.sequence([
-      Animated.spring(scaleAnim, {
-        toValue: 1.2,
-        useNativeDriver: true,
-        speed: 50,
-        bounciness: 10,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        useNativeDriver: true,
-        speed: 50,
-        bounciness: 10,
-      }),
-    ]).start();
-
     onPress(event);
   };
 

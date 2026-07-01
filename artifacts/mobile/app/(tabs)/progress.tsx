@@ -10,10 +10,11 @@ import {
   View,
   Image,
   Modal,
+  ActivityIndicator,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useProgress } from "@/context/ProgressContext";
-import { COURSES } from "@/data/mockData";
+import { fetchAllCourses } from "@/services/courseDataProvider";
 import { useColors } from "@/hooks/useColors";
 import { ProgressAnalytics } from "@/lib/progressAnalytics";
 import { ProgressStats } from "@/components/ProgressStats";
@@ -31,18 +32,56 @@ export default function ProgressScreen() {
     index: number;
   } | null>(null);
 
-  // Calculate learning statistics
+  const [courses, setCourses] = useState<any[]>([]);
+  const [isLoadingCourses, setIsLoadingCourses] = useState(true);
+
+  React.useEffect(() => {
+    async function loadCourses() {
+      try {
+        const all = await fetchAllCourses();
+        const mapped = all.map((c: any) => ({
+          id: String(c.id),
+          title: c.title,
+          category: c.category || "General",
+          level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
+          price: c.price || 0,
+          isFree: c.is_free,
+          thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+          instructor: "Edodwaja Instructor",
+          rating: 4.8,
+          reviews: 120,
+          description: c.description || "",
+          modules: []
+        }));
+        setCourses(mapped);
+      } catch (err) {
+        console.error('[Progress] Error loading courses:', err);
+      } finally {
+        setIsLoadingCourses(false);
+      }
+    }
+    loadCourses();
+  }, []);
+
   const stats = useMemo(
-    () => ProgressAnalytics.calculateLearningStats(courseProgress, COURSES),
-    [courseProgress]
+    () => ProgressAnalytics.calculateLearningStats(courseProgress, courses),
+    [courseProgress, courses]
   );
 
   const coursesWithProgress = useMemo(
-    () => ProgressAnalytics.getCoursesWithProgress(courseProgress, COURSES),
-    [courseProgress]
+    () => ProgressAnalytics.getCoursesWithProgress(courseProgress, courses),
+    [courseProgress, courses]
   );
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  if (isLoadingCourses) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   // Get max minutes for weekly activity chart scaling
   const maxMinutes = Math.max(...stats.weeklyActivity.map((d) => d.minutes), 1);
@@ -659,7 +698,6 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     minHeight: 6,
     position: "relative",
-    transition: "all 0.2s",
   },
   activityDay: {
     fontSize: 12,

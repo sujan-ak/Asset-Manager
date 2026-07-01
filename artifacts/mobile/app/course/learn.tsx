@@ -17,23 +17,101 @@ import { VideoPlayerEnhanced } from "@/components/VideoPlayerEnhanced";
 import { ResumeModal } from "@/components/ResumeModal";
 import { LessonCompleteModal } from "@/components/LessonCompleteModal";
 import { LearningTabs } from "@/components/LearningTabs";
-import { COURSES } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
-import { useProgress } from "@/context/ProgressContext";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useFavorites } from "@/context/FavoritesContext";
+import { getCourseById, getCourseModules } from "@/services/courseDataProvider";
+import { markLessonComplete, upsertLessonProgress, fetchCourseLessonsProgress } from "@/lib/progressStorage";
+import { ActivityIndicator } from "react-native";
 
 export default function LearnScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const { courseId, moduleId } = useLocalSearchParams<{ courseId: string; moduleId: string }>();
-  const { getModuleProgress, updateVideoProgress, enrollCourse, getCourseProgress, completeModule } = useProgress();
+  const { user } = useAuth();
   const { isInWatchLater, toggleWatchLater } = useFavorites();
-  const course = COURSES.find((c) => c.id === courseId);
+
+  const [course, setCourse] = useState<any>(null);
+  const [lessons, setLessons] = useState<any[]>([]); // flat lessons
+  const [lessonsProgress, setLessonsProgress] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "content">("overview");
-  const [activeModuleId, setActiveModuleId] = useState(moduleId ?? course?.modules[0]?.id);
+  const [activeModuleId, setActiveModuleId] = useState<string | undefined>(moduleId);
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [resumeFromTime, setResumeFromTime] = useState(0);
+  useEffect(() => {
+    async function loadData() {
+      if (!courseId) return;
+      setIsLoading(true);
+      try {
+        const courseData = await getCourseById(courseId);
+        if (courseData) {
+          const mappedCourse = {
+            id: String(courseData.id),
+            title: courseData.title,
+            category: courseData.category || "General",
+            level: courseData.level ? (courseData.level.charAt(0).toUpperCase() + courseData.level.slice(1)) : "Beginner",
+            price: courseData.price || 0,
+            isFree: courseData.is_free,
+            thumbnail: courseData.thumbnail_url ? { uri: courseData.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+            instructor: "Edodwaja Instructor",
+            rating: 4.8,
+            reviews: 120,
+            description: courseData.description || "",
+            tags: [courseData.category || "Robotics"],
+          };
+          setCourse(mappedCourse);
+
+          const modulesData = await getCourseModules(courseId);
+          const flatLessons = modulesData.flatMap((m: any) =>
+            m.lessons.map((l: any) => ({
+              id: l.id,
+              title: l.title,
+              videoUrl: l.video_url || "",
+              duration: l.duration_minutes ? `${l.duration_minutes} mins` : "0 mins",
+              description: l.content || "",
+              notes: l.notes ? [l.notes] : [],
+              resources: [],
+            }))
+          );
+          setLessons(flatLessons);
+
+          if (!activeModuleId && flatLessons.length > 0) {
+            setActiveModuleId(moduleId ?? flatLessons[0].id);
+          }
+
+          if (user?.id) {
+            const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+            setLessonsProgress(progressData);
+          }
+        }
+      } catch (error) {
+        console.error("[LearnScreen] load error", error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadData();
+  }, [courseId, user?.id]);
+
+  useEffect(() => {
+    if (!activeModuleId) return;
+    const activeProg = lessonsProgress.find((p) => String(p.lesson_id) === activeModuleId);
+    const savedTime = activeProg?.current_time_secs;
+    if (savedTime && savedTime > 30) {
+      setResumeFromTime(savedTime);
+      setShowResumeModal(true);
+    }
+  }, [activeModuleId]);
+
+  if (isLoading) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
 
   if (!course) {
     return (
@@ -43,33 +121,14 @@ export default function LearnScreen() {
     );
   }
 
-  const courseProgress = getCourseProgress(courseId);
-  const completedModules = courseProgress
-    ? Object.values(courseProgress.modules).filter((m) => m.isCompleted).length
-    : 0;
-  const remainingModules = course.modules.length - completedModules;
-  const progressPercentage = courseProgress?.progress || 0;
+  const completedModules = lessonsProgress.filter((p) => p.is_completed).length;
+  const remainingModules = lessons.length - completedModules;
+  const progressPercentage = lessons.length > 0 ? Math.round((completedModules / lessons.length) * 100) : 0;
 
-  React.useEffect(() => {
-    if (course.isPurchased) {
-      enrollCourse(courseId);
-    }
-  }, [courseId]);
-
-  // Check for resume modal when module changes
-  useEffect(() => {
-    const moduleProgress = getModuleProgress(courseId, activeModuleId);
-    const savedTime = moduleProgress?.videoProgress?.currentTime;
-    if (activeModuleId && savedTime && savedTime > 30) {
-      setResumeFromTime(savedTime);
-      setShowResumeModal(true);
-    }
-  }, [activeModuleId]);
-
-  const activeModule = course.modules.find((m) => m.id === activeModuleId) ?? course.modules[0];
-  const moduleProgress = getModuleProgress(courseId, activeModule.id);
-  const initialTime = showResumeModal ? 0 : (moduleProgress?.videoProgress?.currentTime ?? 0);
-  const isSaved = isInWatchLater(activeModule.id);
+  const activeModule = lessons.find((m) => m.id === activeModuleId) ?? lessons[0];
+  const activeLessonProgress = lessonsProgress.find((p) => String(p.lesson_id) === activeModule?.id);
+  const initialTime = showResumeModal ? 0 : (activeLessonProgress?.current_time_secs ?? 0);
+  const isSaved = activeModule ? isInWatchLater(activeModule.id) : false;
 
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
@@ -94,13 +153,26 @@ export default function LearnScreen() {
   };
 
   const handleProgressUpdate = async (currentTime: number, duration: number) => {
-    if (!courseId || !activeModule?.id) return;
-    await updateVideoProgress(courseId, activeModule.id, currentTime, duration, activeModule.videoUrl);
+    if (!user?.id || !courseId || !activeModule?.id) return;
+    const watchPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
+    await upsertLessonProgress(user.id, courseId, activeModule.id, currentTime, watchPercentage);
+    try {
+      const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+      setLessonsProgress(progressData);
+    } catch (e) {
+      console.error(e);
+    }
   };
 
   const handleVideoComplete = async () => {
-    // Mark the module as completed
-    await completeModule(courseId, activeModule.id);
+    if (!user?.id || !courseId || !activeModule?.id) return;
+    await markLessonComplete(user.id, courseId, activeModule.id);
+    try {
+      const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+      setLessonsProgress(progressData);
+    } catch (e) {
+      console.error(e);
+    }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setShowCompleteModal(true);
   };
@@ -109,44 +181,60 @@ export default function LearnScreen() {
     setShowResumeModal(false);
   };
 
-  const handleStartOver = () => {
+  const handleStartOver = async () => {
+    if (!user?.id || !courseId || !activeModule?.id) return;
     setShowResumeModal(false);
-    updateVideoProgress(courseId, activeModule.id, 0, 0, activeModule.videoUrl);
+    await upsertLessonProgress(user.id, courseId, activeModule.id, 0, 0);
+    const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+    setLessonsProgress(progressData);
   };
 
-  const handleReplayLesson = () => {
+  const handleReplayLesson = async () => {
+    if (!user?.id || !courseId || !activeModule?.id) return;
     setShowCompleteModal(false);
-    updateVideoProgress(courseId, activeModule.id, 0, 0, activeModule.videoUrl);
+    await upsertLessonProgress(user.id, courseId, activeModule.id, 0, 0);
+    const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+    setLessonsProgress(progressData);
   };
 
   const handleNextLesson = () => {
     setShowCompleteModal(false);
-    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
-    const nextModule = course.modules[currentIndex + 1];
+    const currentIndex = lessons.findIndex((m) => m.id === activeModule.id);
+    const nextModule = lessons[currentIndex + 1];
     if (nextModule) {
       setActiveModuleId(nextModule.id);
     }
   };
 
   const getNextModule = () => {
-    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
-    return course.modules[currentIndex + 1];
+    if (!activeModule) return null;
+    const currentIndex = lessons.findIndex((m) => m.id === activeModule.id);
+    return lessons[currentIndex + 1];
   };
 
   const getPreviousModule = () => {
-    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
-    return course.modules[currentIndex - 1];
+    if (!activeModule) return null;
+    const currentIndex = lessons.findIndex((m) => m.id === activeModule.id);
+    return lessons[currentIndex - 1];
   };
 
   const handleMarkComplete = async () => {
-    await completeModule(courseId, activeModule.id);
+    if (!user?.id || !courseId || !activeModule?.id) return;
+    await markLessonComplete(user.id, courseId, activeModule.id);
+    try {
+      const progressData = await fetchCourseLessonsProgress(user.id, courseId);
+      setLessonsProgress(progressData);
+    } catch (e) {
+      console.error(e);
+    }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handlePreviousLesson = async () => {
     await Haptics.selectionAsync();
-    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
-    const prevModule = course.modules[currentIndex - 1];
+    if (!activeModule) return;
+    const currentIndex = lessons.findIndex((m) => m.id === activeModule.id);
+    const prevModule = lessons[currentIndex - 1];
     if (prevModule) {
       setActiveModuleId(prevModule.id);
     }
@@ -154,8 +242,9 @@ export default function LearnScreen() {
 
   const handleNextLessonNav = async () => {
     await Haptics.selectionAsync();
-    const currentIndex = course.modules.findIndex((m) => m.id === activeModule.id);
-    const nextModule = course.modules[currentIndex + 1];
+    if (!activeModule) return;
+    const currentIndex = lessons.findIndex((m) => m.id === activeModule.id);
+    const nextModule = lessons[currentIndex + 1];
     if (nextModule) {
       setActiveModuleId(nextModule.id);
     }
@@ -168,13 +257,14 @@ export default function LearnScreen() {
   };
 
   const getModuleState = (module: any, index: number) => {
-    const modProgress = getModuleProgress(courseId, module.id);
-    const isCompleted = modProgress?.isCompleted || false;
+    const modProgress = lessonsProgress.find((p) => String(p.lesson_id) === module.id);
+    const isCompleted = modProgress?.is_completed || false;
     const isCurrent = activeModuleId === module.id;
     
     // Sequential unlocking: can access if previous is completed or is first
-    const previousModule = course.modules[index - 1];
-    const canAccess = index === 0 || !previousModule || getModuleProgress(courseId, previousModule.id)?.isCompleted;
+    const previousModule = lessons[index - 1];
+    const prevProgress = previousModule ? lessonsProgress.find((p) => String(p.lesson_id) === previousModule.id) : null;
+    const canAccess = index === 0 || !previousModule || prevProgress?.is_completed;
     const isLocked = !canAccess;
     
     return { isCompleted, isCurrent, isLocked };
@@ -257,7 +347,7 @@ export default function LearnScreen() {
       </View>
 
       {/* Mark Complete Button */}
-      {!moduleProgress?.isCompleted && (
+      {!(lessonsProgress.find((p) => String(p.lesson_id) === activeModule?.id)?.is_completed) && (
         <View style={[styles.actionButtonContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
           <Pressable
             style={[styles.markCompleteBtn, { backgroundColor: colors.primary }]}
@@ -306,7 +396,7 @@ export default function LearnScreen() {
           <LearningTabs module={activeModule} />
         ) : (
           <View style={styles.moduleList}>
-            {course.modules.map((mod, idx) => {
+            {lessons.map((mod, idx) => {
               const { isCompleted, isCurrent, isLocked } = getModuleState(mod, idx);
 
               return (

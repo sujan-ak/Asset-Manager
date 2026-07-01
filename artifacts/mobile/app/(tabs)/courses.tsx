@@ -13,32 +13,60 @@ import { ScrollView, View, Text, Pressable, StyleSheet, Platform } from "react-n
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { router } from "expo-router";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useProgress } from "@/context/ProgressContext";
-import { COURSES } from "@/data/mockData";
+import { useAuth } from "@/context/AuthContextSupabase";
 import { useColors } from "@/hooks/useColors";
+import { fetchEnrolledCourses } from "@/services/enrollmentService";
+import { fetchCourseProgress } from "@/lib/progressStorage";
 import { TEXT_STYLES } from "@/constants/typography";
 import { CourseProgressCard } from "@/components/CourseProgressCard";
-import { ProgressAnalytics } from "@/lib/progressAnalytics";
 import { CourseCardSkeleton } from "@/components/SkeletonLoader";
 
 export default function CoursesScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
-  const { courseProgress } = useProgress();
+  const { user } = useAuth();
 
   const [isLoading, setIsLoading] = useState(true);
   const [isInProgressOpen, setIsInProgressOpen] = useState(true);
   const [isNotStartedOpen, setIsNotStartedOpen] = useState(true);
   const [isCompletedOpen, setIsCompletedOpen] = useState(true);
+  const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
 
   useEffect(() => {
-    const timer = setTimeout(() => setIsLoading(false), 800);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const enrolledCourses = useMemo(() => {
-    return ProgressAnalytics.getCoursesWithProgress(courseProgress, COURSES);
-  }, [courseProgress]);
+    async function loadEnrolledCourses() {
+      if (!user?.id) {
+        setIsLoading(false);
+        return;
+      }
+      setIsLoading(true);
+      try {
+        const enrollments = await fetchEnrolledCourses(user.id);
+        const mappedList = await Promise.all(
+          enrollments.map(async (enr: any) => {
+            const c = enr.courses;
+            const prog = await fetchCourseProgress(user.id, String(c.id));
+            return {
+              courseId: String(c.id),
+              courseTitle: c.title,
+              instructor: "Edodwaja Instructor",
+              thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+              progress: prog.percentage,
+              totalModules: prog.total,
+              completedModules: prog.completed,
+              lastAccessedAt: enr.enrolled_at || new Date().toISOString(),
+              timeSpent: 0,
+            };
+          })
+        );
+        setEnrolledCourses(mappedList);
+      } catch (err) {
+        console.error('[CoursesScreen] Error fetching enrolled courses:', err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadEnrolledCourses();
+  }, [user?.id]);
 
   const inProgressCourses = useMemo(() => {
     return enrolledCourses.filter((c) => c.progress > 0 && c.progress < 100);

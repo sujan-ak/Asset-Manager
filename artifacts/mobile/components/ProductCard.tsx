@@ -2,10 +2,13 @@ import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
-import { Image, Pressable, StyleSheet, Text, View, Alert, Platform } from "react-native";
+import { Image, Pressable, StyleSheet, Text, View, Alert, Platform, Dimensions } from "react-native";
 import { Product } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useCart } from "@/context/CartContext";
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const CARD_WIDTH = (SCREEN_WIDTH - 48) / 2;
 
 interface ProductCardProps {
   product: Product;
@@ -107,9 +110,7 @@ export function ProductCard({ product, onAddedToCart, gridMode = false }: Produc
 
 const styles = StyleSheet.create({
   card: {
-    width: "100%",
-    minWidth: 170,
-    maxWidth: 200,
+    width: CARD_WIDTH,
     borderRadius: 16,
     borderWidth: 1,
     overflow: "hidden",

@@ -6,6 +6,8 @@
     "baseUrl": ".",
     "strict": true,
     "skipLibCheck": true,
+    "jsx": "react-native",
+    "esModuleInterop": true,
     "paths": {
       "@/*": [
         "./*"
