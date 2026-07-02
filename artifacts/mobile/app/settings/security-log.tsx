@@ -44,6 +44,7 @@ export default function SecurityLogScreen() {
       {isLoading ? (
         <View style={styles.center}>
           <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
         </View>
       ) : events.length === 0 ? (
         <View style={styles.center}>

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -27,14 +27,14 @@ export default function PrivacyPolicyScreen() {
         <Text style={[styles.lastUpdated, { color: colors.mutedForeground }]}>Last updated: January 2025</Text>
 
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Edodwaja ("we", "us", or "our") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile learning management system application.
+          MakersFlow ("we", "us", or "our") is committed to protecting your privacy. This Privacy Policy explains how we collect, use, disclose, and safeguard your information when you use our mobile learning management system application.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>1. Information We Collect</Text>
         
         <Text style={[styles.subheading, { color: colors.foreground }]}>Account Information</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          When you register for an Edodwaja account, we collect:
+          When you register for an MakersFlow account, we collect:
         </Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Full name</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Email address</Text>
@@ -59,7 +59,7 @@ export default function PrivacyPolicyScreen() {
 
         <Text style={[styles.subheading, { color: colors.foreground }]}>Payment Information</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          When you make purchases for courses or store items, payment processing is handled securely by Razorpay. Edodwaja does not store your credit card, debit card, or UPI credentials. We only receive transaction confirmation and order details from Razorpay.
+          When you make purchases for courses or store items, payment processing is handled securely by Razorpay. MakersFlow does not store your credit card, debit card, or UPI credentials. We only receive transaction confirmation and order details from Razorpay.
         </Text>
 
         <Text style={[styles.subheading, { color: colors.foreground }]}>Device and Technical Information</Text>
@@ -94,12 +94,12 @@ export default function PrivacyPolicyScreen() {
           Many of our users are students under the age of 18. We are committed to protecting the privacy of minors and comply with applicable data protection laws, including India's Digital Personal Data Protection Act (DPDP Act).
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          We do not knowingly collect more information than necessary for educational purposes from users under 18. Parents or legal guardians may contact us at privacy@edodwaja.com to review, correct, or request deletion of their child's personal information.
+          We do not knowingly collect more information than necessary for educational purposes from users under 18. Parents or legal guardians may contact us at privacy@makersflow.com to review, correct, or request deletion of their child's personal information.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>5. Third-Party Services</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Edodwaja uses the following third-party services to provide our application:
+          MakersFlow uses the following third-party services to provide our application:
         </Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>
           • <Text style={{ fontWeight: "600" }}>Supabase</Text>: Authentication and database storage. See Supabase's privacy policy at supabase.com/privacy
@@ -113,7 +113,7 @@ export default function PrivacyPolicyScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>6. Data Retention and Deletion</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          We retain your personal information for as long as your account is active or as needed to provide you services. If you wish to delete your account and all associated data, you may request deletion by contacting our support team via Settings → Help & Support or by emailing privacy@edodwaja.com.
+          We retain your personal information for as long as your account is active or as needed to provide you services. If you wish to delete your account and all associated data, you may request deletion by contacting our support team via Settings → Help & Support or by emailing privacy@makersflow.com.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
           Upon receiving a deletion request, we will delete your personal information within 30 days, except where we are required to retain certain information for legal or regulatory purposes.
@@ -128,12 +128,12 @@ export default function PrivacyPolicyScreen() {
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Export your learning data</Text>
 
         <Text style={[styles.body, { color: colors.foreground }]}>
-          To exercise any of these rights, please contact us at privacy@edodwaja.com.
+          To exercise any of these rights, please contact us at privacy@makersflow.com.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>8. Changes to This Privacy Policy</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          We may update this Privacy Policy from time to time. When we make significant changes, we will notify you through the app or via email. Your continued use of Edodwaja after such changes constitutes your acceptance of the updated policy.
+          We may update this Privacy Policy from time to time. When we make significant changes, we will notify you through the app or via email. Your continued use of MakersFlow after such changes constitutes your acceptance of the updated policy.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>9. Contact Us</Text>
@@ -141,7 +141,7 @@ export default function PrivacyPolicyScreen() {
           If you have any questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us at:
         </Text>
         <Text style={[styles.body, { color: colors.foreground, fontWeight: "600" }]}>
-          Email: privacy@edodwaja.com
+          Email: privacy@makersflow.com
         </Text>
         <Text style={[styles.body, { color: colors.foreground, fontWeight: "600" }]}>
           Support: Settings → Help & Support

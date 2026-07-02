@@ -1,6 +1,6 @@
 @echo off
 echo ================================================
-echo EDODWAJA - Pre-Flight Validation
+echo MakersFlow - Pre-Flight Validation
 echo ================================================
 echo.
 

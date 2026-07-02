@@ -1,4 +1,4 @@
-import { Feather } from '@expo/vector-icons';
+﻿import { Feather } from '@expo/vector-icons';
 import { router, useLocalSearchParams } from 'expo-router';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
@@ -57,7 +57,7 @@ export default function CertificateScreen() {
     </head>
     <body>
       <div class="cert">
-        <div class="brand">Edodwaja</div>
+        <div class="brand">MakersFlow</div>
         <div class="title">Certificate</div>
         <div class="subtitle">of Completion</div>
         <div class="presented">This is to certify that</div>
@@ -66,7 +66,7 @@ export default function CertificateScreen() {
         <div class="course">${courseName ?? 'Course'}</div>
         <div class="date">Issued on ${displayDate}</div>
         <div class="footer">
-          <div class="sig"><div class="sig-line"></div><div class="sig-label">Edodwaja Team</div></div>
+          <div class="sig"><div class="sig-line"></div><div class="sig-label">MakersFlow Team</div></div>
           <div class="sig"><div class="sig-line"></div><div class="sig-label">Date</div></div>
         </div>
       </div>
@@ -77,6 +77,22 @@ export default function CertificateScreen() {
   const handleDownload = async () => {
     setIsGenerating(true);
     try {
+      if (Platform.OS === 'web') {
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(getCertificateHtml());
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 500);
+        } else {
+          Alert.alert('Popup Blocked', 'Please allow popups to save/print the certificate.');
+        }
+        return;
+      }
+
       const dir = `${FileSystem.documentDirectory}certificates/`;
       const dirInfo = await FileSystem.getInfoAsync(dir);
       if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
@@ -92,6 +108,7 @@ export default function CertificateScreen() {
         Alert.alert('Saved', `Certificate saved to:\n${dest}`);
       }
     } catch (e: any) {
+      console.error('[Certificate] Download error:', e);
       Alert.alert('Error', 'Could not generate certificate PDF.');
     } finally {
       setIsGenerating(false);
@@ -112,7 +129,7 @@ export default function CertificateScreen() {
         {/* Certificate card */}
         <View style={[styles.cert, { borderColor: colors.primary }]}>
           <View style={[styles.certInner, { borderColor: '#C7D2FE' }]}>
-            <Text style={[styles.brand, { color: colors.primary }]}>EDODWAJA</Text>
+            <Text style={[styles.brand, { color: colors.primary }]}>MAKERSFLOW</Text>
             <Text style={[styles.certTitle, { color: colors.foreground }]}>Certificate</Text>
             <Text style={[styles.certSubtitle, { color: colors.mutedForeground }]}>OF COMPLETION</Text>
 
@@ -131,7 +148,7 @@ export default function CertificateScreen() {
               <Text style={[styles.dateText, { color: colors.mutedForeground }]}>{displayDate}</Text>
             </View>
 
-            <Text style={[styles.footerBrand, { color: colors.mutedForeground }]}>Edodwaja · Learn · Explore · Excel</Text>
+            <Text style={[styles.footerBrand, { color: colors.mutedForeground }]}>MakersFlow · Learn · Explore · Excel</Text>
           </View>
         </View>
 

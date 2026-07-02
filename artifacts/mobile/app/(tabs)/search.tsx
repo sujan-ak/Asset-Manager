@@ -7,6 +7,7 @@ import { CourseCard } from "@/components/CourseCard";
 import { ProductCard } from "@/components/ProductCard";
 import { PRODUCTS } from "@/data/mockData";
 import { fetchAllCourses } from "@/services/courseDataProvider";
+import { useCart } from "@/context/CartContext";
 import colors from "@/constants/colors";
 
 const POPULAR_TOPICS = ["Robotics", "Arduino", "AI & ML", "IoT", "Python", "Electronics", "Circuits", "3D Printing"];
@@ -24,6 +25,7 @@ const CATEGORIES = [
 
 export default function SearchScreen() {
   const insets = useSafeAreaInsets();
+  const { count } = useCart();
   const [searchQuery, setSearchQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [isFocused, setIsFocused] = useState(false);
@@ -45,7 +47,7 @@ export default function SearchScreen() {
           price: c.price || 0,
           isFree: c.is_free,
           thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
-          instructor: "Edodwaja Instructor",
+          instructor: "MakersFlow Instructor",
           rating: 4.8,
           reviews: 120,
           description: c.description || "",
@@ -130,7 +132,7 @@ export default function SearchScreen() {
   };
 
   const handleCartPress = () => {
-    router.push("/store/checkout");
+    router.push("/(tabs)/store");
   };
 
   const showIdle = !isFocused && !query;
@@ -141,6 +143,7 @@ export default function SearchScreen() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.light.background }}>
         <ActivityIndicator size="large" color={colors.light.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: '#6B7280', fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
@@ -174,8 +177,17 @@ export default function SearchScreen() {
           ) : null}
         </View>
         {!showResults ? (
-          <Pressable onPress={handleCartPress} hitSlop={8}>
+          <Pressable
+            onPress={handleCartPress}
+            hitSlop={8}
+            style={{ position: "relative" }}
+          >
             <Ionicons name="cart-outline" size={24} color={colors.light.foreground} />
+            {count > 0 && (
+              <View style={styles.cartBadge}>
+                <Text style={styles.cartBadgeText}>{count}</Text>
+              </View>
+            )}
           </Pressable>
         ) : null}
       </View>
@@ -411,5 +423,22 @@ const styles = StyleSheet.create({
   },
   productsScroll: {
     paddingHorizontal: 20,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -4,
+    right: -4,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: colors.light.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  cartBadgeText: {
+    fontSize: 10,
+    fontWeight: "700",
+    color: "#FFF",
   },
 });

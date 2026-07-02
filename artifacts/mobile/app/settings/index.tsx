@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -74,7 +74,7 @@ export default function SettingsScreen() {
           ))}
         </View>
 
-        <Text style={[styles.version, { color: colors.mutedForeground }]}>EDODWAJA v1.0.0</Text>
+        <Text style={[styles.version, { color: colors.mutedForeground }]}>MAKERSFLOW v1.0.0</Text>
       </ScrollView>
     </View>
   );

@@ -2,12 +2,55 @@ import { ModuleProgress, VideoProgress } from "./progressStorage";
 
 export const ProgressCalculator = {
   /**
+   * Calculate consecutive daily learning streak
+   */
+  calculateStreak(progressList: any[]): number {
+    const dates = progressList
+      .map((p) => p.last_watched_at ? new Date(p.last_watched_at).toDateString() : null)
+      .filter(Boolean)
+      .filter((date, index, self) => self.indexOf(date) === index)
+      .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime());
+
+    if (dates.length === 0) return 0;
+
+    const today = new Date().toDateString();
+    const yesterday = new Date(Date.now() - 86400000).toDateString();
+
+    if (dates[0] !== today && dates[0] !== yesterday) {
+      return 0; // streak broken
+    }
+
+    let streak = 1;
+    let currentDate = new Date(dates[0]!);
+
+    for (let i = 1; i < dates.length; i++) {
+      const prevDate = new Date(currentDate);
+      prevDate.setDate(prevDate.getDate() - 1);
+
+      if (dates[i] === prevDate.toDateString()) {
+        streak++;
+        currentDate = new Date(dates[i]!);
+      } else {
+        break;
+      }
+    }
+    return streak;
+  },
+
+  /**
    * Calculate overall course progress based on module completion
    * Returns percentage (0-100)
    */
   calculateCourseProgress(modules: Record<string, ModuleProgress>): number {
     const moduleArray = Object.values(modules);
     if (moduleArray.length === 0) return 0;
+
+    const hasLessonCounts = moduleArray.every(m => (m as any).totalLessons !== undefined);
+    if (hasLessonCounts) {
+      const total = moduleArray.reduce((sum, m) => sum + ((m as any).totalLessons || 0), 0);
+      const completed = moduleArray.reduce((sum, m) => sum + ((m as any).completedLessons || 0), 0);
+      return total ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+    }
 
     const completedCount = moduleArray.filter((m) => m.isCompleted).length;
     return Math.round((completedCount / moduleArray.length) * 100);

@@ -23,9 +23,11 @@ import { LearningTabs } from "@/components/LearningTabs";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useFavorites } from "@/context/FavoritesContext";
+import { useProgress } from "@/context/ProgressContext";
 import { getCourseById, getCourseModules } from "@/services/courseDataProvider";
 import { markLessonComplete, upsertLessonProgress, fetchCourseLessonsProgress } from "@/lib/progressStorage";
 import { ActivityIndicator } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function LearnScreen() {
   const colors = useColors();
@@ -33,10 +35,12 @@ export default function LearnScreen() {
   const { courseId, moduleId } = useLocalSearchParams<{ courseId: string; moduleId: string }>();
   const { user } = useAuth();
   const { isInWatchLater, toggleWatchLater } = useFavorites();
+  const { completeModule } = useProgress();
 
   const [course, setCourse] = useState<any>(null);
   const [lessons, setLessons] = useState<any[]>([]); // flat lessons
   const [lessonsProgress, setLessonsProgress] = useState<any[]>([]);
+  const [totalLessons, setTotalLessons] = useState(0); // authoritative count from DB
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "content">("overview");
   const [activeModuleId, setActiveModuleId] = useState<string | undefined>(moduleId);
@@ -47,6 +51,7 @@ export default function LearnScreen() {
   const [downloadedPath, setDownloadedPathState] = useState<string | null>(null);
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+  const [isMarkingComplete, setIsMarkingComplete] = useState(false);
 
   useEffect(() => {
     if (!activeModuleId) return;
@@ -68,7 +73,7 @@ export default function LearnScreen() {
             price: courseData.price || 0,
             isFree: courseData.is_free,
             thumbnail: courseData.thumbnail_url ? { uri: courseData.thumbnail_url } : require('@/assets/images/course_robotics.png'),
-            instructor: "Edodwaja Instructor",
+            instructor: "MakersFlow Instructor",
             rating: 4.8,
             reviews: 120,
             description: courseData.description || "",
@@ -89,6 +94,7 @@ export default function LearnScreen() {
             }))
           );
           setLessons(flatLessons);
+          setTotalLessons(flatLessons.length); // store authoritative total
 
           if (!activeModuleId && flatLessons.length > 0) {
             setActiveModuleId(moduleId ?? flatLessons[0].id);
@@ -122,6 +128,7 @@ export default function LearnScreen() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
@@ -134,9 +141,13 @@ export default function LearnScreen() {
     );
   }
 
+  // Use totalLessons (authoritative DB count) for progress calculation
   const completedModules = lessonsProgress.filter((p) => p.is_completed).length;
-  const remainingModules = lessons.length - completedModules;
-  const progressPercentage = lessons.length > 0 ? Math.round((completedModules / lessons.length) * 100) : 0;
+  const effectiveTotalLessons = totalLessons || lessons.length;
+  const remainingModules = effectiveTotalLessons - completedModules;
+  const progressPercentage = effectiveTotalLessons > 0
+    ? Math.min(100, Math.round((completedModules / effectiveTotalLessons) * 100))
+    : 0;
 
   const activeModule = lessons.find((m) => m.id === activeModuleId) ?? lessons[0];
   const activeLessonProgress = lessonsProgress.find((p) => String(p.lesson_id) === activeModule?.id);
@@ -220,6 +231,8 @@ export default function LearnScreen() {
   const handleVideoComplete = async () => {
     if (!user?.id || !courseId || !activeModule?.id) return;
     await markLessonComplete(user.id, courseId, activeModule.id);
+    // Sync ProgressContext so progress bars elsewhere update
+    await completeModule(courseId, activeModule.id);
     let updatedProgress: any[] = [];
     try {
       updatedProgress = await fetchCourseLessonsProgress(user.id, courseId);
@@ -229,18 +242,25 @@ export default function LearnScreen() {
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
 
-    // Navigate to certificate if course is now 100% complete
+    // Navigate to certificate only on FIRST completion
     const completedCount = updatedProgress.filter((p) => p.is_completed).length;
-    if (lessons.length > 0 && completedCount === lessons.length) {
-      router.push({
-        pathname: '/certificate',
-        params: {
-          courseName: course?.title ?? '',
-          studentName: user.name ?? '',
-          completionDate: new Date().toISOString(),
-        },
-      });
-      return;
+    const lastLessonId = lessons[lessons.length - 1]?.id;
+    const isLastLesson = String(activeModule?.id) === String(lastLessonId);
+    if (totalLessons > 0 && completedCount >= totalLessons && isLastLesson) {
+      const certKey = `@cert_shown:${user.id}:${courseId}`;
+      const alreadyShown = await AsyncStorage.getItem(certKey);
+      if (!alreadyShown) {
+        await AsyncStorage.setItem(certKey, 'true');
+        router.push({
+          pathname: '/certificate',
+          params: {
+            courseName: course?.title ?? '',
+            studentName: user.name ?? '',
+            completionDate: new Date().toISOString(),
+          },
+        });
+        return;
+      }
     }
 
     setShowCompleteModal(true);
@@ -289,14 +309,50 @@ export default function LearnScreen() {
 
   const handleMarkComplete = async () => {
     if (!user?.id || !courseId || !activeModule?.id) return;
-    await markLessonComplete(user.id, courseId, activeModule.id);
+    if (isMarkingComplete) return;
+    setIsMarkingComplete(true);
     try {
-      const progressData = await fetchCourseLessonsProgress(user.id, courseId);
-      setLessonsProgress(progressData);
+      await markLessonComplete(user.id, courseId, activeModule.id);
+      // Sync ProgressContext so progress bars elsewhere update
+      await completeModule(courseId, activeModule.id);
+      let updatedProgress: any[] = [];
+      try {
+        updatedProgress = await fetchCourseLessonsProgress(user.id, courseId);
+        setLessonsProgress(updatedProgress);
+      } catch (e) {
+        console.error(e);
+      }
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+      // Navigate to certificate only on FIRST completion
+      const completedCount = updatedProgress.filter((p) => p.is_completed).length;
+      const lastLessonId = lessons[lessons.length - 1]?.id;
+      const isLastLesson = String(activeModule?.id) === String(lastLessonId);
+      if (totalLessons > 0 && completedCount >= totalLessons && isLastLesson) {
+        const certKey = `@cert_shown:${user.id}:${courseId}`;
+        const alreadyShown = await AsyncStorage.getItem(certKey);
+        if (!alreadyShown) {
+          await AsyncStorage.setItem(certKey, 'true');
+          router.push({
+            pathname: '/certificate',
+            params: {
+              courseName: course?.title ?? '',
+              studentName: user.name ?? '',
+              completionDate: new Date().toISOString(),
+            },
+          });
+          return;
+        }
+      }
+
+      // Show completion modal
+      setShowCompleteModal(true);
     } catch (e) {
-      console.error(e);
+      console.error('[markComplete] error:', e);
+      showToast('Failed to mark lesson complete. Please try again.');
+    } finally {
+      setIsMarkingComplete(false);
     }
-    await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
   };
 
   const handlePreviousLesson = async () => {
@@ -430,17 +486,36 @@ export default function LearnScreen() {
       </View>
 
       {/* Mark Complete Button */}
-      {!(lessonsProgress.find((p) => String(p.lesson_id) === activeModule?.id)?.is_completed) && (
-        <View style={[styles.actionButtonContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
-          <Pressable
-            style={[styles.markCompleteBtn, { backgroundColor: colors.primary }]}
-            onPress={handleMarkComplete}
-          >
-            <Feather name="check" size={16} color="#FFF" />
-            <Text style={styles.markCompleteBtnText}>Mark Lesson Complete</Text>
-          </Pressable>
-        </View>
-      )}
+      {(() => {
+        const isAlreadyComplete = !!(lessonsProgress.find(
+          (p) => String(p.lesson_id) === String(activeModule?.id)
+        )?.is_completed);
+        return isAlreadyComplete ? (
+          <View style={[styles.actionButtonContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <View style={[styles.markCompleteBtn, { backgroundColor: '#10B981' }]}>
+              <Feather name="check-circle" size={16} color="#FFF" />
+              <Text style={styles.markCompleteBtnText}>Lesson Completed</Text>
+            </View>
+          </View>
+        ) : (
+          <View style={[styles.actionButtonContainer, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
+            <Pressable
+              style={[styles.markCompleteBtn, { backgroundColor: isMarkingComplete ? colors.muted : colors.primary }]}
+              onPress={handleMarkComplete}
+              disabled={isMarkingComplete}
+            >
+              {isMarkingComplete ? (
+                <RNActivityIndicator size="small" color="#FFF" />
+              ) : (
+                <Feather name="check" size={16} color="#FFF" />
+              )}
+              <Text style={styles.markCompleteBtnText}>
+                {isMarkingComplete ? 'Saving...' : 'Mark Lesson Complete'}
+              </Text>
+            </Pressable>
+          </View>
+        );
+      })()}
 
       {/* Tabs */}
       <View style={[styles.tabs, { backgroundColor: colors.card, borderBottomColor: colors.border }]}>
@@ -481,6 +556,8 @@ export default function LearnScreen() {
           <View style={styles.moduleList}>
             {lessons.map((mod, idx) => {
               const { isCompleted, isCurrent, isLocked } = getModuleState(mod, idx);
+              const modProgress = lessonsProgress.find((p) => String(p.lesson_id) === String(mod.id));
+              const watchedPercentage = modProgress?.watch_percentage || 0;
 
               return (
                 <Pressable
@@ -528,7 +605,19 @@ export default function LearnScreen() {
                     >
                       {mod.title}
                     </Text>
-                    <Text style={[styles.modDuration, { color: colors.mutedForeground }]}>{mod.duration}</Text>
+                    <View style={{ flexDirection: "row", alignItems: "center", marginTop: 3 }}>
+                      <Text style={[styles.modDuration, { color: colors.mutedForeground }]}>{mod.duration}</Text>
+                      {watchedPercentage > 0 && watchedPercentage < 100 && (
+                        <Text style={{ fontSize: 12, color: colors.primary, marginLeft: 6 }}>
+                          · {Math.round(watchedPercentage)}% watched
+                        </Text>
+                      )}
+                    </View>
+                    {watchedPercentage > 0 && watchedPercentage < 100 && (
+                      <View style={{ height: 3, borderRadius: 1.5, width: "80%", backgroundColor: colors.border, marginTop: 6 }}>
+                        <View style={{ height: 3, borderRadius: 1.5, width: `${watchedPercentage}%` as any, backgroundColor: colors.primary }} />
+                      </View>
+                    )}
                   </View>
 
                   <Feather

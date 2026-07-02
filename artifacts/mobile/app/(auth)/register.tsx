@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
 import React, { useState } from "react";
@@ -126,13 +126,19 @@ export default function RegisterScreen() {
         contentContainerStyle={[styles.content, { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 }]}
         keyboardShouldPersistTaps="handled"
       >
-        <Pressable onPress={() => router.back()} style={styles.backBtn}>
+        <Pressable
+          onPress={() => {
+            if (router.canGoBack()) router.back();
+            else router.replace("/(auth)/login");
+          }}
+          style={styles.backBtn}
+        >
           <Feather name="arrow-left" size={22} color={colors.foreground} />
         </Pressable>
 
         <View style={styles.header}>
           <Text style={[styles.title, { color: colors.foreground }]}>Create account</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Join thousands of students on EDODWAJA</Text>
+          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>Join thousands of students on MAKERSFLOW</Text>
         </View>
 
         <View style={styles.form}>

@@ -51,6 +51,70 @@ export function VideoPlayerEnhanced({
   const [isLoading, setIsLoading] = useState(true);
   const [lastStatus, setLastStatus] = useState<string>("");
 
+  const [isMuted, setIsMuted] = useState(false);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [showVolumeBar, setShowVolumeBar] = useState(false);
+  const [volume, setVolume] = useState(1.0);
+
+  const handleVolumeChange = (val: number) => {
+    if (!player) return;
+    player.volume = val;
+    setVolume(val);
+    if (val > 0 && player.muted) {
+      player.muted = false;
+      setIsMuted(false);
+    }
+  };
+  const barHeight = useRef(new Animated.Value(3)).current;
+  const barWidth = useRef(0);
+
+  const toggleMute = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    if (!player) return;
+    player.muted = !player.muted;
+    setIsMuted(player.muted);
+  };
+
+  const handleTouch = (event: any) => {
+    if (!duration || duration <= 0 || !isFinite(duration)) return;
+    const locationX = event.nativeEvent.locationX;
+    const width = barWidth.current || 1;
+    const ratio = Math.max(0, Math.min(1, locationX / width));
+    const newTime = ratio * duration;
+    if (isFinite(newTime)) {
+      player.currentTime = newTime;
+      setCurrentTime(newTime);
+    }
+  };
+
+  const handleTouchStart = (event: any) => {
+    setIsScrubbing(true);
+    if (hideTimer.current) {
+      clearTimeout(hideTimer.current);
+    }
+    Animated.timing(barHeight, {
+      toValue: 5,
+      duration: 150,
+      useNativeDriver: false,
+    }).start();
+    handleTouch(event);
+  };
+
+  const handleTouchMove = (event: any) => {
+    handleTouch(event);
+  };
+
+  const handleTouchEnd = async () => {
+    setIsScrubbing(false);
+    Animated.timing(barHeight, {
+      toValue: 3,
+      duration: 150,
+      useNativeDriver: false,
+    }).start();
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    showControlsWithTimer();
+  };
+
   // FIX: Dynamic dimensions that update on orientation change
   const [screenDims, setScreenDims] = useState(Dimensions.get("window"));
 
@@ -169,6 +233,8 @@ export function VideoPlayerEnhanced({
         setIsPlaying(playing);
         setCurrentTime(currentT);
         setDuration(durationT);
+        setIsMuted(player.muted);
+        setVolume(player.volume);
 
         const loading = status === "loading";
         setIsLoading(loading);
@@ -260,6 +326,83 @@ export function VideoPlayerEnhanced({
       );
     };
   }, [isFullscreen]);
+
+  const handleBackPress = () => {
+    if (isFullscreen) {
+      toggleFullscreen();
+    } else {
+      router.back();
+    }
+  };
+
+  const handleVideoTap = () => {
+    if (!showControls) {
+      showControlsWithTimer();
+    } else {
+      togglePlayPause();
+    }
+  };
+
+  const [showLeftIndicator, setShowLeftIndicator] = useState(false);
+  const [showRightIndicator, setShowRightIndicator] = useState(false);
+  const leftIndicatorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const rightIndicatorTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTap = useRef(0);
+  const singleTapTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const videoWidth = useRef(0);
+
+  const handleVideoPress = (event: any) => {
+    const now = Date.now();
+    const DOUBLE_TAP_DELAY = 280;
+    const locationX = event.nativeEvent.locationX;
+    const containerW = videoWidth.current || screenDims.width;
+    const isLeft = locationX < containerW / 2;
+
+    if (now - lastTap.current < DOUBLE_TAP_DELAY) {
+      // Double tap detected!
+      if (singleTapTimeout.current) {
+        clearTimeout(singleTapTimeout.current);
+        singleTapTimeout.current = null;
+      }
+
+      if (isLeft) {
+        // Seek backward 10s
+        const newTime = Math.max(0, currentTime - 10);
+        player.currentTime = newTime;
+        setCurrentTime(newTime);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+        // Show indicator
+        setShowLeftIndicator(true);
+        if (leftIndicatorTimeout.current) clearTimeout(leftIndicatorTimeout.current);
+        leftIndicatorTimeout.current = setTimeout(() => {
+          setShowLeftIndicator(false);
+        }, 500);
+      } else {
+        // Seek forward 10s
+        if (duration > 0) {
+          const newTime = Math.min(duration, currentTime + 10);
+          player.currentTime = newTime;
+          setCurrentTime(newTime);
+          Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+          // Show indicator
+          setShowRightIndicator(true);
+          if (rightIndicatorTimeout.current) clearTimeout(rightIndicatorTimeout.current);
+          rightIndicatorTimeout.current = setTimeout(() => {
+            setShowRightIndicator(false);
+          }, 500);
+        }
+      }
+    } else {
+      // Schedule single tap action
+      singleTapTimeout.current = setTimeout(() => {
+        handleVideoTap();
+        singleTapTimeout.current = null;
+      }, DOUBLE_TAP_DELAY);
+    }
+    lastTap.current = now;
+  };
 
   const togglePlayPause = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -414,9 +557,7 @@ export function VideoPlayerEnhanced({
       {/* Loading Overlay */}
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <View
-            style={[styles.loadingContainer, { backgroundColor: colors.card }]}
-          >
+          <View style={[styles.loadingContainer, { backgroundColor: colors.card }]}>
             <Text style={[styles.loadingText, { color: colors.foreground }]}>
               Please wait...
             </Text>
@@ -427,81 +568,91 @@ export function VideoPlayerEnhanced({
       {/* Controls Overlay */}
       <Animated.View
         style={[styles.controlsOverlay, { opacity: overlayOpacity }]}
-        pointerEvents={showControls ? "auto" : "none"}
+        pointerEvents={showControls || isScrubbing ? "box-none" : "none"}
       >
         {/* Top Bar */}
-        <View style={styles.topBar}>
-          <Pressable
-            onPress={() => router.back()}
-            style={styles.iconButton}
-            accessibilityRole="button"
-            accessibilityLabel="Go back"
-          >
-            <Feather name="chevron-down" size={24} color="#FFF" />
-          </Pressable>
-          <View style={{ flex: 1 }} />
-          <Pressable onPress={toggleFullscreen} style={styles.iconButton}>
-            <Feather
-              name={isFullscreen ? "minimize-2" : "maximize-2"}
-              size={20}
-              color="#FFF"
-            />
-          </Pressable>
+        <View style={styles.topBar} pointerEvents="auto">
+          {isFullscreen && (
+            <Pressable
+              onPress={handleBackPress}
+              style={styles.iconButton}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+            >
+              <Feather name="arrow-left" size={24} color="#FFF" />
+            </Pressable>
+          )}
         </View>
 
-        {/* Center Controls */}
-        <View style={styles.centerControls}>
-          <Pressable onPress={skipBackward} style={styles.skipButton}>
-            <Feather name="rotate-ccw" size={24} color="#FFF" />
-            <Text style={styles.skipLabel}>15s</Text>
-          </Pressable>
-
-          <Pressable
-            onPress={togglePlayPause}
-            style={styles.playButton}
-          >
-            <Feather
-              name={isPlaying ? "pause" : "play"}
-              size={40}
-              color="#FFF"
-              style={{ marginLeft: isPlaying ? 0 : 4 }}
-            />
-          </Pressable>
-
-          <Pressable onPress={skipForward} style={styles.skipButton}>
-            <Feather name="rotate-cw" size={24} color="#FFF" />
-            <Text style={styles.skipLabel}>15s</Text>
-          </Pressable>
+        {/* Center Controls (Large Play/Pause Button) */}
+        <View style={styles.centerPlayOverlayContainer}>
+          {showControls && (
+            <Pressable onPress={togglePlayPause} style={styles.centerPlayPauseBtn}>
+              <Feather name={isPlaying ? "pause" : "play"} size={36} color="#FFF" style={isPlaying ? {} : { marginLeft: 4 }} />
+            </Pressable>
+          )}
         </View>
 
-        {/* Bottom Bar */}
-        <View style={styles.bottomBar}>
-          {/* Progress Bar - Now draggable slider */}
-          <View style={styles.progressContainer}>
-            <Text style={styles.timeText}>{formatTime(currentTime)}</Text>
-
+        {/* Bottom Player Area */}
+        <View style={styles.bottomWrapper} pointerEvents="auto">
+          {/* Controls Bar */}
+          <View style={styles.bottomControlBar}>
+            {/* Progress Slider (Matching volume bar slider style) */}
             <Slider
               style={styles.progressSlider}
               value={currentTime}
               minimumValue={0}
               maximumValue={duration || 1}
-              minimumTrackTintColor="#FFFFFF"
-              maximumTrackTintColor="rgba(255,255,255,0.3)"
-              thumbTintColor="#FFFFFF"
+              minimumTrackTintColor="#FF0000" // Played portion: YouTube Red
+              maximumTrackTintColor="rgba(255, 255, 255, 0.3)" // Unplayed track
+              thumbTintColor="#FFFFFF" // Scrubber dot: white
               onValueChange={handleSliderChange}
               onSlidingStart={handleSliderStart}
               onSlidingComplete={handleSliderComplete}
             />
 
-            <Text style={styles.timeText}>{formatTime(duration)}</Text>
-          </View>
+            <View style={styles.controlsRow}>
+              {/* Left: Play/Pause Button + Volume Control + Time display */}
+              <View style={styles.leftControls}>
+                <Pressable onPress={togglePlayPause} style={styles.controlBtn}>
+                  <Feather name={isPlaying ? "pause" : "play"} size={22} color="#FFF" />
+                </Pressable>
 
-          {/* Control Buttons */}
-          <View style={styles.controlButtons}>
-            <PlaybackSpeedSelector
-              currentSpeed={playbackSpeed}
-              onSpeedChange={handleSpeedChange}
-            />
+                <Pressable onPress={() => setShowVolumeBar(!showVolumeBar)} style={styles.controlBtn}>
+                  <Feather name={isMuted || volume === 0 ? "volume-x" : volume < 0.5 ? "volume-1" : "volume-2"} size={20} color="#FFF" />
+                </Pressable>
+
+                {showVolumeBar && (
+                  <Slider
+                    style={styles.volumeSlider}
+                    value={isMuted ? 0 : volume}
+                    minimumValue={0}
+                    maximumValue={1}
+                    minimumTrackTintColor="#FFFFFF"
+                    maximumTrackTintColor="rgba(255,255,255,0.3)"
+                    thumbTintColor="#FFFFFF"
+                    onValueChange={handleVolumeChange}
+                  />
+                )}
+
+                <Text style={[styles.timeText, { marginLeft: 4 }]}>
+                  {formatTime(currentTime)} / {formatTime(duration)}
+                </Text>
+              </View>
+
+              {/* Right: Settings Icon + Fullscreen Button */}
+              <View style={styles.rightControls}>
+                <PlaybackSpeedSelector
+                  currentSpeed={playbackSpeed}
+                  onSpeedChange={handleSpeedChange}
+                  asIcon={true}
+                />
+
+                <Pressable onPress={toggleFullscreen} style={styles.controlBtn}>
+                  <Feather name={isFullscreen ? "minimize-2" : "maximize-2"} size={20} color="#FFF" />
+                </Pressable>
+              </View>
+            </View>
           </View>
         </View>
       </Animated.View>
@@ -515,7 +666,8 @@ export function VideoPlayerEnhanced({
         <Pressable
           ref={videoContainerRef}
           style={styles.videoContainer}
-          onPress={showControlsWithTimer}
+          onLayout={(e) => { videoWidth.current = e.nativeEvent.layout.width; }}
+          onPress={handleVideoPress}
         >
           <VideoView
             player={player}
@@ -524,6 +676,26 @@ export function VideoPlayerEnhanced({
             contentFit="cover"
             allowsPictureInPicture={false}
           />
+          
+          {/* Double Tap Seek Indicators */}
+          {showLeftIndicator && (
+            <View style={styles.leftSeekIndicator}>
+              <View style={styles.indicatorCircle}>
+                <Text style={styles.indicatorText}>{"<<"}</Text>
+                <Text style={styles.indicatorSubtext}>10s</Text>
+              </View>
+            </View>
+          )}
+
+          {showRightIndicator && (
+            <View style={styles.rightSeekIndicator}>
+              <View style={styles.indicatorCircle}>
+                <Text style={styles.indicatorText}>{">>"}</Text>
+                <Text style={styles.indicatorSubtext}>10s</Text>
+              </View>
+            </View>
+          )}
+
           {renderVideoControls()}
         </Pressable>
       </View>
@@ -546,7 +718,8 @@ export function VideoPlayerEnhanced({
           <View style={styles.fullscreenContainer}>
             <Pressable
               style={styles.fullscreenVideoContainer}
-              onPress={showControlsWithTimer}
+              onLayout={(e) => { videoWidth.current = e.nativeEvent.layout.width; }}
+              onPress={handleVideoPress}
             >
               <VideoView
                 player={player}
@@ -555,6 +728,26 @@ export function VideoPlayerEnhanced({
                 contentFit="cover"
                 allowsPictureInPicture={false}
               />
+              
+              {/* Double Tap Seek Indicators */}
+              {showLeftIndicator && (
+                <View style={styles.leftSeekIndicator}>
+                  <View style={styles.indicatorCircle}>
+                    <Text style={styles.indicatorText}>{"<<"}</Text>
+                    <Text style={styles.indicatorSubtext}>10s</Text>
+                  </View>
+                </View>
+              )}
+
+              {showRightIndicator && (
+                <View style={styles.rightSeekIndicator}>
+                  <View style={styles.indicatorCircle}>
+                    <Text style={styles.indicatorText}>{">>"}</Text>
+                    <Text style={styles.indicatorSubtext}>10s</Text>
+                  </View>
+                </View>
+              )}
+
               {renderVideoControls()}
             </Pressable>
           </View>
@@ -620,65 +813,153 @@ const styles = StyleSheet.create({
   },
   controlsOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(0,0,0,0.15)",
     justifyContent: "space-between",
   },
-  topBar: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    padding: 12,
-  },
-  centerControls: {
+  centerPlayOverlayContainer: {
     flex: 1,
-    flexDirection: "row",
     justifyContent: "center",
     alignItems: "center",
-    gap: 40,
   },
-  playButton: {
+  centerPlayPauseBtn: {
     width: 60,
     height: 60,
-    backgroundColor: "transparent",
-    borderWidth: 0,
+    borderRadius: 30,
+    backgroundColor: "rgba(0, 0, 0, 0.5)", // Dark semi-transparent circle
     justifyContent: "center",
     alignItems: "center",
   },
-  skipButton: {
-    alignItems: "center",
+  leftSeekIndicator: {
+    position: "absolute",
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: "50%",
     justifyContent: "center",
-    padding: 8,
+    alignItems: "center",
+    zIndex: 4,
   },
-  skipLabel: {
+  rightSeekIndicator: {
+    position: "absolute",
+    right: 0,
+    top: 0,
+    bottom: 0,
+    width: "50%",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 4,
+  },
+  indicatorCircle: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  indicatorText: {
+    color: "#FFF",
+    fontSize: 20,
+    fontWeight: "bold",
+  },
+  indicatorSubtext: {
     color: "#FFF",
     fontSize: 10,
     fontWeight: "600",
     marginTop: 2,
   },
-  bottomBar: {
+  topBar: {
     padding: 12,
-    gap: 8,
+    alignItems: "flex-start",
   },
-  progressContainer: {
+  bottomWrapper: {
+    width: "100%",
+    position: "relative",
+  },
+  bottomControlBar: {
+    backgroundColor: "transparent",
+    paddingTop: 4,
+    paddingBottom: Platform.OS === "ios" ? 18 : 8, // Safe area padding back here
+    width: "100%",
+  },
+  progressSlider: {
+    width: "100%",
+    height: 30,
+    marginTop: -8,
+    marginBottom: -4,
+  },
+  progressTrack: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    backgroundColor: 'rgba(255,255,255,0.3)',
+  },
+  progressFill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    backgroundColor: '#FF0000', // YouTube Red
+  },
+  scrubberDot: {
+    position: 'absolute',
+    top: -3.5, // Centers vertically on the animated track
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: '#FFFFFF',
+    zIndex: 100,
+  },
+  controlsRow: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
+    paddingHorizontal: 16,
+  },
+  leftControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  volumeSlider: {
+    width: 70,
+    height: 30,
+    marginLeft: 4,
+  },
+  rightControls: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  volumeBtn: {
+    padding: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   timeText: {
     color: "#FFF",
     fontSize: 12,
     fontWeight: "500",
-    minWidth: 40,
-    textAlign: "center",
   },
-  progressSlider: {
-    flex: 1,
-    height: 40,
-  },
-  controlButtons: {
+  centerPlaybackButtons: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
+    justifyContent: "center",
+    gap: 20,
+  },
+  controlBtn: {
+    padding: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  playPauseBtn: {
+    width: 42,
+    height: 42,
+    borderRadius: 21,
+    backgroundColor: "rgba(255, 255, 255, 0.15)",
+  },
+  rightPlaceholder: {
+    flex: 1,
   },
   iconButton: {
     width: 40,

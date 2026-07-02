@@ -1,40 +1,36 @@
 import { Redirect, useSegments } from 'expo-router';
-import React, { useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import React from 'react';
+import { ActivityIndicator, View, StyleSheet, Text } from 'react-native';
 import { useAuth } from '@/context/AuthContextSupabase';
 import { useColors } from '@/hooks/useColors';
+
+// Routes accessible without authentication
+const PUBLIC_ROUTES = [
+  'settings/privacy-policy',
+  'settings/terms-of-service',
+];
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, isLoading } = useAuth();
   const segments = useSegments();
   const colors = useColors();
 
-  useEffect(() => {
-    const inAuthGroup = segments[0] === '(auth)';
-
-    if (!isLoading) {
-      if (!isAuthenticated && !inAuthGroup) {
-        // Redirect to login if not authenticated and trying to access protected route
-        console.log('[ProtectedRoute] Redirecting to login - not authenticated');
-      } else if (isAuthenticated && inAuthGroup) {
-        // Redirect to home if authenticated and trying to access auth screens
-        console.log('[ProtectedRoute] Redirecting to home - already authenticated');
-      }
-    }
-  }, [isAuthenticated, isLoading, segments]);
-
   if (isLoading) {
     return (
       <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
 
   const inAuthGroup = segments[0] === '(auth)';
+  // e.g. segments = ['settings', 'privacy-policy'] → 'settings/privacy-policy'
+  const currentPath = segments.join('/');
+  const isPublicRoute = PUBLIC_ROUTES.some((route) => currentPath === route || currentPath.startsWith(route));
 
-  // If not authenticated and not in auth group, redirect to login
-  if (!isAuthenticated && !inAuthGroup) {
+  // If not authenticated, not in auth group, and not a public route → redirect to login
+  if (!isAuthenticated && !inAuthGroup && !isPublicRoute) {
     return <Redirect href="/(auth)/login" />;
   }
 

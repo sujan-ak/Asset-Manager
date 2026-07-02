@@ -1,8 +1,10 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router } from "expo-router";
-import React from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useState } from "react";
 import {
+  ActivityIndicator,
   Alert,
   Image,
   Platform,
@@ -16,6 +18,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useProgress } from "@/context/ProgressContext";
 import { useColors } from "@/hooks/useColors";
+import { supabase } from "@/lib/supabase";
+import { getCourseModules } from "@/services/courseDataProvider";
 
 interface MenuItem {
   icon: string;
@@ -23,6 +27,12 @@ interface MenuItem {
   onPress: () => void;
   danger?: boolean;
   iconLib?: "feather" | "ionicons";
+}
+
+interface CompletedCourse {
+  courseId: string;
+  courseTitle: string;
+  completedAt: string;
 }
 
 export default function ProfileScreen() {
@@ -39,47 +49,96 @@ export default function ProfileScreen() {
       ? Math.round(enrolledCourses.reduce((s, c) => s + c.progress, 0) / enrolledCourses.length)
       : 0;
 
+  const [completedCourses, setCompletedCourses] = useState<CompletedCourse[]>([]);
+  const [certsLoading, setCertsLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      async function loadCompletedCourses() {
+        if (!user?.id) {
+          setCertsLoading(false);
+          return;
+        }
+        setCertsLoading(true);
+        try {
+          const { data: enrollments } = await supabase
+            .from("enrollments")
+            .select("course_id, completed_at, enrolled_at, courses(title)")
+            .eq("user_id", user.id);
+
+          if (!enrollments) { setCertsLoading(false); return; }
+
+          const { data: progressData } = await supabase
+            .from("lesson_progress")
+            .select("course_id, lesson_id, is_completed")
+            .eq("user_id", user.id);
+
+          const progressList = progressData ?? [];
+          const results: CompletedCourse[] = [];
+
+          for (const enr of enrollments) {
+            const courseId = String(enr.course_id);
+            const courseTitle = (enr.courses as any)?.title ?? "Unknown Course";
+
+            if (enr.completed_at) {
+              results.push({ courseId, courseTitle, completedAt: enr.completed_at });
+              continue;
+            }
+
+            const modules = await getCourseModules(courseId);
+            const allLessonIds = modules.flatMap((m: any) =>
+              (m.lessons ?? []).map((l: any) => String(l.id))
+            );
+            if (allLessonIds.length === 0) continue;
+
+            const completedIds = progressList
+              .filter((p) => p.is_completed && String(p.course_id) === courseId)
+              .map((p) => String(p.lesson_id));
+
+            const allDone = allLessonIds.every((id: string) => completedIds.includes(id));
+            if (allDone) {
+              results.push({
+                courseId,
+                courseTitle,
+                completedAt: enr.enrolled_at ?? new Date().toISOString(),
+              });
+            }
+          }
+          setCompletedCourses(results);
+        } catch (err) {
+          console.error("[Profile] loadCompletedCourses error:", err);
+        } finally {
+          setCertsLoading(false);
+        }
+      }
+      loadCompletedCourses();
+    }, [user?.id])
+  );
+
   function handleLogout() {
-    console.log('Logout button clicked');
-    
-    if (Platform.OS === 'web') {
-      // Use native browser confirm on web
-      const confirmed = window.confirm('Are you sure you want to sign out?');
-      console.log('Web confirm result:', confirmed);
-      
+    if (Platform.OS === "web") {
+      const confirmed = window.confirm("Are you sure you want to sign out?");
       if (confirmed) {
-        console.log('Starting logout...');
-        logout().then(() => {
-          console.log('Logout successful, redirecting...');
-          window.location.href = '/';
-        }).catch((error) => {
-          console.error('Logout error:', error);
-          alert('Failed to sign out. Please try again.');
+        logout().then(() => { window.location.href = "/"; }).catch(() => {
+          alert("Failed to sign out. Please try again.");
         });
       }
     } else {
-      // Use React Native Alert on mobile
       Alert.alert(
-        "Sign Out", 
-        "Are you sure you want to sign out?", 
+        "Sign Out",
+        "Are you sure you want to sign out?",
         [
-          { 
-            text: "Cancel", 
-            style: "cancel",
-            onPress: () => console.log('Logout cancelled')
-          },
+          { text: "Cancel", style: "cancel" },
           {
             text: "Sign Out",
             style: "destructive",
             onPress: async () => {
               try {
-                console.log('Logout confirmed, starting logout...');
                 await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
                 await logout();
-                console.log('Logout completed, redirecting...');
                 router.replace("/(auth)/login");
               } catch (error) {
-                console.error('Logout error:', error);
+                console.error("Logout error:", error);
               }
             },
           },
@@ -89,28 +148,14 @@ export default function ProfileScreen() {
     }
   }
 
-  const sections: { title: string; items: MenuItem[] }[] = [
-    {
-      title: "Learning",
-      items: [
-        { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
-        { icon: "heart", label: "Favorites & Watch Later", onPress: () => router.push("/favorites") },
-        { icon: "cart-outline", label: "Store", onPress: () => router.push("/(tabs)/store"), iconLib: "ionicons" as const },
-        { icon: "cart-outline", label: "My Orders", onPress: () => router.push("/store/orders"), iconLib: "ionicons" as const },
-        { 
-          icon: "award", 
-          label: "Achievements", 
-          onPress: async () => {
-            await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            Alert.alert(
-              "Achievements 🏆",
-              "Your achievements will be displayed here. Complete more courses and lessons to unlock badges and certificates!",
-              [{ text: "OK" }]
-            );
-          }
-        },
-      ],
-    },
+  const learningMenuItems: MenuItem[] = [
+    { icon: "book-open", label: "My Courses", onPress: () => router.push("/(tabs)/courses") },
+    { icon: "heart", label: "Favorites & Watch Later", onPress: () => router.push("/favorites") },
+    { icon: "cart-outline", label: "Store", onPress: () => router.push("/(tabs)/store"), iconLib: "ionicons" as const },
+    { icon: "cart-outline", label: "My Orders", onPress: () => router.push("/store/orders"), iconLib: "ionicons" as const },
+  ];
+
+  const otherSections: { title: string; items: MenuItem[] }[] = [
     {
       title: "Account",
       items: [
@@ -136,6 +181,13 @@ export default function ProfileScreen() {
     .join("")
     .toUpperCase()
     .slice(0, 2) ?? "S";
+
+  const formatDate = (iso: string) =>
+    new Date(iso).toLocaleDateString("en-IN", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
 
   return (
     <ScrollView
@@ -190,13 +242,124 @@ export default function ProfileScreen() {
         </View>
         <View style={[styles.statDivider, { backgroundColor: colors.border }]} />
         <View style={styles.stat}>
-          <Text style={[styles.statNum, { color: colors.foreground }]}>3</Text>
-          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Quizzes</Text>
+          <Text style={[styles.statNum, { color: colors.foreground }]}>{completedCourses.length}</Text>
+          <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>Certificates</Text>
         </View>
       </View>
 
-      {/* Menu sections */}
-      {sections.map((section) => (
+      {/* Learning section */}
+      <View style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>Learning</Text>
+        <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          {learningMenuItems.map((item, idx) => (
+            <React.Fragment key={item.label}>
+              <Pressable
+                style={({ pressed }) => [styles.menuItem, { opacity: pressed ? 0.7 : 1 }]}
+                onPress={item.onPress}
+              >
+                <View style={[styles.menuIconBox, { backgroundColor: colors.accent }]}>
+                  {item.iconLib === "ionicons" ? (
+                    <Ionicons name={item.icon as any} size={16} color={colors.primary} />
+                  ) : (
+                    <Feather name={item.icon as any} size={16} color={colors.primary} />
+                  )}
+                </View>
+                <Text style={[styles.menuLabel, { color: colors.foreground }]}>{item.label}</Text>
+                <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
+              </Pressable>
+              {idx < learningMenuItems.length - 1 && (
+                <View style={[styles.menuDivider, { backgroundColor: colors.border }]} />
+              )}
+            </React.Fragment>
+          ))}
+        </View>
+      </View>
+
+      {/* Achievements & Certificates — inline */}
+      <View style={styles.section}>
+        <View style={styles.achievementsHeader}>
+          <View style={styles.achievementsTitleRow}>
+            <Feather name="award" size={16} color={colors.primary} />
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground, marginBottom: 0 }]}>
+              ACHIEVEMENTS & CERTIFICATES
+            </Text>
+          </View>
+          {completedCourses.length > 0 && (
+            <View style={[styles.certCountBadge, { backgroundColor: "#10B981" }]}>
+              <Text style={styles.certCountText}>{completedCourses.length}</Text>
+            </View>
+          )}
+        </View>
+
+        {certsLoading ? (
+          <View style={[styles.certsCard, { backgroundColor: colors.card, borderColor: colors.border, alignItems: "center", paddingVertical: 20 }]}>
+            <ActivityIndicator size="small" color={colors.primary} />
+            <Text style={{ marginTop: 8, fontSize: 13, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
+          </View>
+        ) : completedCourses.length === 0 ? (
+          <View style={[styles.certsCard, styles.emptyCertsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Feather name="award" size={36} color={colors.mutedForeground} style={{ opacity: 0.3 }} />
+            <Text style={[styles.emptyCertsText, { color: colors.mutedForeground }]}>
+              No certificates yet
+            </Text>
+            <Text style={[styles.emptyCertsSub, { color: colors.mutedForeground }]}>
+              Complete a course to earn your certificate
+            </Text>
+            <Pressable
+              style={[styles.browseCourseBtn, { backgroundColor: colors.primary }]}
+              onPress={() => router.push("/(tabs)/courses")}
+            >
+              <Text style={styles.browseCourseBtnText}>Browse Courses</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <View style={[styles.certsCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            {completedCourses.map((course, idx) => (
+              <React.Fragment key={course.courseId}>
+                <View style={styles.certRow}>
+                  {/* Medal icon */}
+                  <View style={styles.medalBox}>
+                    <Text style={styles.medalEmoji}>🏆</Text>
+                  </View>
+
+                  {/* Course info */}
+                  <View style={styles.certInfo}>
+                    <Text style={[styles.certCourseTitle, { color: colors.foreground }]} numberOfLines={2}>
+                      {course.courseTitle}
+                    </Text>
+                    <Text style={[styles.certDate, { color: colors.mutedForeground }]}>
+                      Completed · {formatDate(course.completedAt)}
+                    </Text>
+                  </View>
+
+                  {/* Download button */}
+                  <Pressable
+                    style={[styles.downloadBtn, { backgroundColor: "#10B981" }]}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/certificate",
+                        params: {
+                          courseName: course.courseTitle,
+                          studentName: user?.name ?? "",
+                          completionDate: course.completedAt,
+                        },
+                      })
+                    }
+                  >
+                    <Feather name="download" size={14} color="#FFF" />
+                  </Pressable>
+                </View>
+                {idx < completedCourses.length - 1 && (
+                  <View style={[styles.menuDivider, { backgroundColor: colors.border, marginLeft: 60 }]} />
+                )}
+              </React.Fragment>
+            ))}
+          </View>
+        )}
+      </View>
+
+      {/* Other sections */}
+      {otherSections.map((section) => (
         <View key={section.title} style={styles.section}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{section.title}</Text>
           <View style={[styles.menuCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -227,7 +390,9 @@ export default function ProfileScreen() {
         </View>
       ))}
 
-      <Text style={[styles.version, { color: colors.mutedForeground }]}>EDODWAJA v1.0.0 · Member since {user?.joinedDate}</Text>
+      <Text style={[styles.version, { color: colors.mutedForeground }]}>
+        MAKERSFLOW v1.0.0 · Member since {user?.joinedDate}
+      </Text>
     </ScrollView>
   );
 }
@@ -251,12 +416,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 12,
   },
-  avatarImage: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    marginBottom: 12,
-  },
+  avatarImage: { width: 72, height: 72, borderRadius: 36, marginBottom: 12 },
   initials: { fontSize: 28, fontWeight: "800", color: "#FFF" },
   name: { fontSize: 20, fontWeight: "800", color: "#FFF", marginBottom: 2 },
   email: { fontSize: 13, color: "rgba(255,255,255,0.75)", marginBottom: 12 },
@@ -281,7 +441,13 @@ const styles = StyleSheet.create({
   statLabel: { fontSize: 12, marginTop: 2 },
   statDivider: { width: 1 },
   section: { paddingHorizontal: 20, marginBottom: 20 },
-  sectionTitle: { fontSize: 12, fontWeight: "700", textTransform: "uppercase", letterSpacing: 1, marginBottom: 8 },
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    textTransform: "uppercase",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
   menuCard: { borderRadius: 16, borderWidth: 1, overflow: "hidden" },
   menuItem: {
     flexDirection: "row",
@@ -300,4 +466,87 @@ const styles = StyleSheet.create({
   menuLabel: { flex: 1, fontSize: 15, fontWeight: "500" },
   menuDivider: { height: 1, marginLeft: 62 },
   version: { textAlign: "center", fontSize: 12, paddingBottom: 8 },
+
+  // Achievements section
+  achievementsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  achievementsTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  certCountBadge: {
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 6,
+  },
+  certCountText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#FFF",
+  },
+  certsCard: {
+    borderRadius: 16,
+    borderWidth: 1,
+    overflow: "hidden",
+  },
+  emptyCertsCard: {
+    padding: 28,
+    alignItems: "center",
+    gap: 8,
+  },
+  emptyCertsText: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  emptyCertsSub: {
+    fontSize: 13,
+    textAlign: "center",
+    lineHeight: 18,
+  },
+  browseCourseBtn: {
+    marginTop: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  browseCourseBtnText: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#FFF",
+  },
+  certRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    gap: 12,
+  },
+  medalBox: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    backgroundColor: "#FFFBEB",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  medalEmoji: { fontSize: 22 },
+  certInfo: { flex: 1, gap: 3 },
+  certCourseTitle: { fontSize: 14, fontWeight: "700", lineHeight: 19 },
+  certDate: { fontSize: 12 },
+  downloadBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
 });

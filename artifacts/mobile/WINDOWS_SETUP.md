@@ -1,4 +1,4 @@
-# EDODWAJA - Windows Setup Guide
+# MakersFlow - Windows Setup Guide
 
 ## Fixed Issues
 

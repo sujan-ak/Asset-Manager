@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useMemo, useState } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useMemo, useState, useEffect, useCallback } from "react";
 import {
   Platform,
   Pressable,
@@ -23,40 +23,7 @@ import { SectionHeader } from "@/components/SectionHeader";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { fetchEnrolledCourses } from "@/services/enrollmentService";
 import { supabase } from "@/lib/supabase";
-
-function calculateStreak(progressList: any[]): number {
-  const dates = progressList
-    .map((p) => p.last_watched_at ? new Date(p.last_watched_at).toDateString() : null)
-    .filter(Boolean)
-    .filter((date, index, self) => self.indexOf(date) === index)
-    .sort((a, b) => new Date(b!).getTime() - new Date(a!).getTime());
-
-  if (dates.length === 0) return 0;
-
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-
-  if (dates[0] !== today && dates[0] !== yesterday) {
-    return 0; // streak broken
-  }
-
-  let streak = 1;
-  let currentDate = new Date(dates[0]!);
-
-  for (let i = 1; i < dates.length; i++) {
-    const prevDate = new Date(currentDate);
-    prevDate.setDate(prevDate.getDate() - 1);
-
-    if (dates[i] === prevDate.toDateString()) {
-      streak++;
-      currentDate = new Date(dates[i]!);
-    } else {
-      break;
-    }
-  }
-
-  return streak;
-}
+import { ProgressCalculator } from "@/lib/progressCalculator";
 
 function formatTotalTime(totalSeconds: number): string {
   const minutes = Math.round(totalSeconds / 60);
@@ -93,173 +60,175 @@ export default function ProgressScreen() {
     recentlyCompleted: [],
   });
 
-  React.useEffect(() => {
-    async function loadStatsAndCourses() {
-      if (!user?.id) {
-        setIsLoadingCourses(false);
-        return;
-      }
-      setIsLoadingCourses(true);
-      try {
-        const all = await fetchAllCourses();
-        const mapped = all.map((c: any) => ({
-          id: String(c.id),
-          title: c.title,
-          category: c.category || "General",
-          level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
-          price: c.price || 0,
-          isFree: c.is_free,
-          thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
-          instructor: "Edodwaja Instructor",
-          rating: 4.8,
-          reviews: 120,
-          description: c.description || "",
-          modules: []
-        }));
-        setCourses(mapped);
+  useFocusEffect(
+    useCallback(() => {
+      async function loadStatsAndCourses() {
+        if (!user?.id) {
+          setIsLoadingCourses(false);
+          return;
+        }
+        setIsLoadingCourses(true);
+        try {
+          const all = await fetchAllCourses();
+          const mapped = all.map((c: any) => ({
+            id: String(c.id),
+            title: c.title,
+            category: c.category || "General",
+            level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
+            price: c.price || 0,
+            isFree: c.is_free,
+            thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+            instructor: "MakersFlow Instructor",
+            rating: 4.8,
+            reviews: 120,
+            description: c.description || "",
+            modules: []
+          }));
+          setCourses(mapped);
 
-        // Fetch enrollments
-        const enrollments = await fetchEnrolledCourses(user.id);
+          // Fetch enrollments
+          const enrollments = await fetchEnrolledCourses(user.id);
 
-        // Fetch lesson progress
-        const { data: progressData, error: progressError } = await supabase
-          .from('lesson_progress')
-          .select('course_id, lesson_id, time_spent_secs, is_completed, last_watched_at')
-          .eq('user_id', user.id);
+          // Fetch lesson progress
+          const { data: progressData, error: progressError } = await supabase
+            .from('lesson_progress')
+            .select('course_id, lesson_id, time_spent_secs, is_completed, last_watched_at')
+            .eq('user_id', user.id);
 
-        if (progressError) throw progressError;
-        const progressList = progressData ?? [];
+          if (progressError) throw progressError;
+          const progressList = progressData ?? [];
 
-        // Calculate completed courses count
-        let completedCoursesCount = 0;
-        let notStartedCoursesCount = 0;
+          // Calculate completed courses count
+          let completedCoursesCount = 0;
+          let notStartedCoursesCount = 0;
 
-        const courseProgressListMap = new Map<string, any[]>();
-        progressList.forEach((p) => {
-          const cId = String(p.course_id);
-          if (!courseProgressListMap.has(cId)) {
-            courseProgressListMap.set(cId, []);
+          const courseProgressListMap = new Map<string, any[]>();
+          progressList.forEach((p) => {
+            const cId = String(p.course_id);
+            if (!courseProgressListMap.has(cId)) {
+              courseProgressListMap.set(cId, []);
+            }
+            courseProgressListMap.get(cId)!.push(p);
+          });
+
+          for (const enr of enrollments) {
+            if (enr.completed_at) {
+              completedCoursesCount++;
+            } else {
+              const courseId = String(enr.course_id);
+              const courseModules = await getCourseModules(courseId);
+              const lessonIds = courseModules.flatMap((m: any) => (m.lessons ?? []).map((l: any) => l.id));
+              
+              if (lessonIds.length > 0) {
+                const courseProg = courseProgressListMap.get(courseId) ?? [];
+                const completedLessons = courseProg.filter((p) => p.is_completed && lessonIds.includes(p.lesson_id)).length;
+                if (completedLessons === lessonIds.length) {
+                  completedCoursesCount++;
+                } else if (completedLessons === 0 && courseProg.length === 0) {
+                  notStartedCoursesCount++;
+                }
+              } else {
+                notStartedCoursesCount++;
+              }
+            }
           }
-          courseProgressListMap.get(cId)!.push(p);
-        });
 
-        for (const enr of enrollments) {
-          if (enr.completed_at) {
-            completedCoursesCount++;
-          } else {
+          const totalCoursesEnrolled = enrollments.length;
+          const coursesInProgress = Math.max(0, totalCoursesEnrolled - completedCoursesCount - notStartedCoursesCount);
+          const totalLessonsCompleted = progressList.filter((p) => p.is_completed).length;
+
+          // Calculate average progress
+          let progressSum = 0;
+          for (const enr of enrollments) {
             const courseId = String(enr.course_id);
             const courseModules = await getCourseModules(courseId);
             const lessonIds = courseModules.flatMap((m: any) => (m.lessons ?? []).map((l: any) => l.id));
-            
             if (lessonIds.length > 0) {
               const courseProg = courseProgressListMap.get(courseId) ?? [];
               const completedLessons = courseProg.filter((p) => p.is_completed && lessonIds.includes(p.lesson_id)).length;
-              if (completedLessons === lessonIds.length) {
-                completedCoursesCount++;
-              } else if (completedLessons === 0 && courseProg.length === 0) {
-                notStartedCoursesCount++;
+              progressSum += Math.round((completedLessons / lessonIds.length) * 100);
+            }
+          }
+          const averageProgress = totalCoursesEnrolled > 0 ? Math.round(progressSum / totalCoursesEnrolled) : 0;
+
+          // Calculate total time spent
+          const totalTimeSpent = progressList.reduce((sum, p) => sum + (p.time_spent_secs || 0), 0);
+
+          // Calculate learning streak
+          const learningStreak = ProgressCalculator.calculateStreak(progressList);
+
+          // Generate weekly activity (7 days ending with today)
+          const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+          const weeklyActivity = [];
+          const now = new Date();
+
+          for (let i = 6; i >= 0; i--) {
+            const date = new Date(now);
+            date.setDate(now.getDate() - i);
+            const dayName = days[date.getDay()];
+            const dateString = date.toDateString();
+
+            const dayProgress = progressList.filter(p => {
+              if (!p.last_watched_at) return false;
+              return new Date(p.last_watched_at).toDateString() === dateString;
+            });
+
+            const dayMinutes = dayProgress.reduce((sum, p) => sum + (p.time_spent_secs || (p.is_completed ? 300 : 0)), 0) / 60;
+            const dayCompleted = dayProgress.filter(p => p.is_completed).length;
+
+            weeklyActivity.push({
+              day: dayName,
+              minutes: Math.round(dayMinutes),
+              lessonsCompleted: dayCompleted,
+            });
+          }
+
+          // Calculate recently completed lessons (last 10)
+          const recentlyCompleted: any[] = [];
+          for (const p of progressList) {
+            if (p.is_completed && p.last_watched_at) {
+              const course = mapped.find((c: any) => c.id === String(p.course_id));
+              if (!course) continue;
+
+              const courseModules = await getCourseModules(String(p.course_id));
+              const matchedModule = courseModules.find((m: any) => (m.lessons ?? []).some((l: any) => l.id === p.lesson_id));
+
+              if (matchedModule) {
+                recentlyCompleted.push({
+                  courseId: course.id,
+                  courseTitle: course.title,
+                  moduleId: matchedModule.id,
+                  moduleTitle: matchedModule.title,
+                  completedAt: p.last_watched_at,
+                  courseThumbnail: course.thumbnail,
+                });
               }
-            } else {
-              notStartedCoursesCount++;
             }
           }
-        }
+          recentlyCompleted.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
+          const topRecentlyCompleted = recentlyCompleted.slice(0, 10);
 
-        const totalCoursesEnrolled = enrollments.length;
-        const coursesInProgress = Math.max(0, totalCoursesEnrolled - completedCoursesCount - notStartedCoursesCount);
-        const totalLessonsCompleted = progressList.filter((p) => p.is_completed).length;
-
-        // Calculate average progress
-        let progressSum = 0;
-        for (const enr of enrollments) {
-          const courseId = String(enr.course_id);
-          const courseModules = await getCourseModules(courseId);
-          const lessonIds = courseModules.flatMap((m: any) => (m.lessons ?? []).map((l: any) => l.id));
-          if (lessonIds.length > 0) {
-            const courseProg = courseProgressListMap.get(courseId) ?? [];
-            const completedLessons = courseProg.filter((p) => p.is_completed && lessonIds.includes(p.lesson_id)).length;
-            progressSum += Math.round((completedLessons / lessonIds.length) * 100);
-          }
-        }
-        const averageProgress = totalCoursesEnrolled > 0 ? Math.round(progressSum / totalCoursesEnrolled) : 0;
-
-        // Calculate total time spent
-        const totalTimeSpent = progressList.reduce((sum, p) => sum + (p.time_spent_secs || 0), 0);
-
-        // Calculate learning streak
-        const learningStreak = calculateStreak(progressList);
-
-        // Generate weekly activity (7 days ending with today)
-        const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-        const weeklyActivity = [];
-        const now = new Date();
-
-        for (let i = 6; i >= 0; i--) {
-          const date = new Date(now);
-          date.setDate(now.getDate() - i);
-          const dayName = days[date.getDay()];
-          const dateString = date.toDateString();
-
-          const dayProgress = progressList.filter(p => {
-            if (!p.last_watched_at) return false;
-            return new Date(p.last_watched_at).toDateString() === dateString;
+          setStats({
+            totalCoursesEnrolled,
+            coursesCompleted: completedCoursesCount,
+            coursesInProgress,
+            totalLessonsCompleted,
+            averageProgress,
+            totalTimeSpent,
+            learningStreak,
+            weeklyActivity,
+            recentlyCompleted: topRecentlyCompleted,
           });
 
-          const dayMinutes = dayProgress.reduce((sum, p) => sum + (p.time_spent_secs || 0), 0) / 60;
-          const dayCompleted = dayProgress.filter(p => p.is_completed).length;
-
-          weeklyActivity.push({
-            day: dayName,
-            minutes: Math.round(dayMinutes),
-            lessonsCompleted: dayCompleted,
-          });
+        } catch (err) {
+          console.error('[Progress] Error loading stats & courses:', err);
+        } finally {
+          setIsLoadingCourses(false);
         }
-
-        // Calculate recently completed lessons (last 10)
-        const recentlyCompleted: any[] = [];
-        for (const p of progressList) {
-          if (p.is_completed && p.last_watched_at) {
-            const course = mapped.find((c: any) => c.id === String(p.course_id));
-            if (!course) continue;
-
-            const courseModules = await getCourseModules(String(p.course_id));
-            const matchedModule = courseModules.find((m: any) => (m.lessons ?? []).some((l: any) => l.id === p.lesson_id));
-
-            if (matchedModule) {
-              recentlyCompleted.push({
-                courseId: course.id,
-                courseTitle: course.title,
-                moduleId: matchedModule.id,
-                moduleTitle: matchedModule.title,
-                completedAt: p.last_watched_at,
-                courseThumbnail: course.thumbnail,
-              });
-            }
-          }
-        }
-        recentlyCompleted.sort((a: any, b: any) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime());
-        const topRecentlyCompleted = recentlyCompleted.slice(0, 10);
-
-        setStats({
-          totalCoursesEnrolled,
-          coursesCompleted: completedCoursesCount,
-          coursesInProgress,
-          totalLessonsCompleted,
-          averageProgress,
-          totalTimeSpent,
-          learningStreak,
-          weeklyActivity,
-          recentlyCompleted: topRecentlyCompleted,
-        });
-
-      } catch (err) {
-        console.error('[Progress] Error loading stats & courses:', err);
-      } finally {
-        setIsLoadingCourses(false);
       }
-    }
-    loadStatsAndCourses();
-  }, [user?.id]);
+      loadStatsAndCourses();
+    }, [user?.id])
+  );
 
   const coursesWithProgress = useMemo(
     () => ProgressAnalytics.getCoursesWithProgress(courseProgress, courses),
@@ -272,6 +241,7 @@ export default function ProgressScreen() {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
@@ -378,7 +348,7 @@ export default function ProgressScreen() {
                 </Text>
               </View>
             </View>
-            {stats.weeklyActivity.reduce((sum: number, d: any) => sum + d.minutes, 0) === 0 ? (
+            {stats.totalLessonsCompleted === 0 ? (
               <View
                 style={[
                   styles.emptyActivityCard,

@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import * as Haptics from "expo-haptics";
 import { router, useLocalSearchParams } from "expo-router";
-import React, { useEffect, useState } from "react";
+import { useFocusEffect } from "expo-router";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   Alert,
   Image,
@@ -63,7 +64,7 @@ export default function CourseDetailScreen() {
             price: courseData.price || 0,
             isFree: courseData.is_free,
             thumbnail: courseData.thumbnail_url ? { uri: courseData.thumbnail_url } : require('@/assets/images/course_robotics.png'),
-            instructor: "Edodwaja Instructor",
+            instructor: "MakersFlow Instructor",
             rating: 4.8,
             reviews: 120,
             description: courseData.description || "",
@@ -101,10 +102,32 @@ export default function CourseDetailScreen() {
     loadCourse();
   }, [id, user?.id]);
 
+  // Re-fetch progress every time this screen comes into focus
+  // (e.g. when navigating back from the learn screen)
+  useFocusEffect(
+    useCallback(() => {
+      async function refreshProgress() {
+        if (!user?.id || !id) return;
+        try {
+          const enrolledStatus = await checkEnrollment(user.id, id);
+          setIsEnrolled(enrolledStatus);
+          if (enrolledStatus) {
+            const progressData = await fetchCourseLessonsProgress(user.id, id);
+            setLessonsProgress(progressData);
+          }
+        } catch (err) {
+          console.error('[CourseDetail] refreshProgress error:', err);
+        }
+      }
+      refreshProgress();
+    }, [user?.id, id])
+  );
+
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
@@ -128,8 +151,10 @@ export default function CourseDetailScreen() {
 
   const quiz = QUIZZES.find((q) => q.courseId === course.id);
   const completedModules = lessonsProgress.filter((p) => p.is_completed).length;
-  const progress = modules.length > 0 ? Math.round((completedModules / modules.length) * 100) : 0;
-  const remainingModules = modules.length - completedModules;
+  const progress = modules.length > 0
+    ? Math.min(100, Math.round((completedModules / modules.length) * 100))
+    : 0;
+  const remainingModules = Math.max(0, modules.length - completedModules);
   
   const lastModuleId = lessonsProgress.length > 0 
     ? lessonsProgress.sort((a, b) => new Date(b.last_watched_at || 0).getTime() - new Date(a.last_watched_at || 0).getTime())[0]?.lesson_id 
@@ -273,7 +298,7 @@ export default function CourseDetailScreen() {
           </View>
 
           {/* Progress (if enrolled) */}
-          {isEnrolled && hasStarted && (
+          {isEnrolled && (
             <View style={[styles.progressCard, { backgroundColor: colors.accent, borderColor: colors.primary }]}>
               <View style={styles.progressHeader}>
                 <View>
@@ -311,8 +336,8 @@ export default function CourseDetailScreen() {
             {modules.length} lessons · {displayDuration}
           </Text>
           {modules.map((mod, idx) => {
-            const modProgress = lessonsProgress.find((p) => String(p.lesson_id) === mod.id);
-            const isCompleted = modProgress?.is_completed || false;
+            const modProgress = lessonsProgress.find((p) => String(p.lesson_id) === String(mod.id));
+            const isCompleted = modProgress?.is_completed === true;
             const watchedPercentage = modProgress?.watch_percentage || 0;
 
             return (
@@ -357,6 +382,11 @@ export default function CourseDetailScreen() {
                       </Text>
                     )}
                   </View>
+                  {watchedPercentage > 0 && watchedPercentage < 100 && (
+                    <View style={[styles.lessonProgressTrack, { backgroundColor: colors.muted, marginTop: 6 }]}>
+                      <View style={[styles.lessonProgressFill, { width: `${watchedPercentage}%` as any, backgroundColor: colors.primary }]} />
+                    </View>
+                  )}
                 </View>
                 {isEnrolled ? (
                   <Feather 
@@ -569,6 +599,15 @@ const styles = StyleSheet.create({
   moduleNum: { width: 32, height: 32, borderRadius: 10, alignItems: "center", justifyContent: "center" },
   moduleNumText: { fontSize: 13, fontWeight: "700" },
   moduleInfo: { flex: 1, gap: 4 },
+  lessonProgressTrack: {
+    height: 3,
+    borderRadius: 1.5,
+    width: "80%",
+  },
+  lessonProgressFill: {
+    height: 3,
+    borderRadius: 1.5,
+  },
   moduleTitle: { fontSize: 14, fontWeight: "600" },
   moduleMetaRow: {
     flexDirection: "row",

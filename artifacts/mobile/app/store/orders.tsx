@@ -64,8 +64,16 @@ export default function OrdersScreen() {
           await Promise.all(mapped.map(async (o: any) => {
             const p = await getInvoicePath(o.id);
             if (p) {
-              const info = await FileSystem.getInfoAsync(p);
-              if (info.exists) paths[o.id] = p;
+              if (Platform.OS === 'web' || p.startsWith('html:')) {
+                paths[o.id] = p;
+              } else {
+                try {
+                  const info = await FileSystem.getInfoAsync(p);
+                  if (info && info.exists) paths[o.id] = p;
+                } catch (err) {
+                  console.warn('Error reading file info:', err);
+                }
+              }
             }
           }));
           setInvoicePaths(paths);
@@ -110,6 +118,23 @@ export default function OrdersScreen() {
     if (!path) { Alert.alert('No invoice', 'Invoice not available for this order.'); return; }
     setSharingId(orderId);
     try {
+      if (Platform.OS === 'web' || path.startsWith('html:')) {
+        const htmlContent = path.startsWith('html:') ? path.substring(5) : path;
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          printWindow.focus();
+          setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+          }, 500);
+        } else {
+          Alert.alert('Popup Blocked', 'Please allow popups to print/download the invoice.');
+        }
+        return;
+      }
+
       const canShare = await Sharing.isAvailableAsync();
       if (canShare) {
         await Sharing.shareAsync(path, { mimeType: 'application/pdf', dialogTitle: 'Download Invoice' });
@@ -127,6 +152,7 @@ export default function OrdersScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background, justifyContent: "center", alignItems: "center" }]}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }

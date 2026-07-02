@@ -1,11 +1,11 @@
-{
+﻿{
   "expo": {
-    "name": "EDODWAJA",
+    "name": "MAKERSFLOW",
     "slug": "mobile",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "edodwaja",
+    "scheme": "makersflow",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,21 +15,21 @@
     },
     "ios": {
       "supportsTablet": false,
-      "bundleIdentifier": "com.edodwaja.mobile"
+      "bundleIdentifier": "com.makersflow.mobile"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/icon.png",
         "backgroundColor": "#4F46E5"
       },
-      "package": "com.edodwaja.mobile",
+      "package": "com.makersflow.mobile",
       "intentFilters": [
         {
           "action": "VIEW",
           "autoVerify": true,
           "data": [
             {
-              "scheme": "edodwaja",
+              "scheme": "makersflow",
               "host": "auth",
               "pathPrefix": "/callback"
             }

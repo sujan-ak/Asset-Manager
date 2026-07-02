@@ -138,10 +138,12 @@ export default function LoginScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.logoContainer, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoText}>E</Text>
-          </View>
-          <Text style={[styles.appName, { color: colors.foreground }]}>EDODWAJA</Text>
+          <Image
+            source={require("@/assets/images/logo.png")}
+            style={styles.logoImage}
+            resizeMode="contain"
+          />
+          <Text style={[styles.appName, { color: colors.foreground }]}>MAKERSFLOW</Text>
           <Text style={[styles.tagline, { color: colors.mutedForeground }]}>Learn · Explore · Excel</Text>
         </View>
 
@@ -311,15 +313,11 @@ const styles = StyleSheet.create({
   container: { flex: 1 },
   content: { paddingHorizontal: 24 },
   header: { alignItems: "center", marginBottom: 36 },
-  logoContainer: {
-    width: 72,
-    height: 72,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
+  logoImage: {
+    width: 80,
+    height: 80,
     marginBottom: 12,
   },
-  logoText: { fontSize: 36, fontWeight: "800", color: "#FFF" },
   appName: { fontSize: 24, fontWeight: "800", letterSpacing: 2 },
   tagline: { fontSize: 13, marginTop: 4 },
   form: { gap: 16 },

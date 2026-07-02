@@ -1,4 +1,4 @@
-// ═══════════════════════════════════════════════════════════
+﻿// ═══════════════════════════════════════════════════════════
 // MOVED TO: app/(tabs)/search.tsx
 // ═══════════════════════════════════════════════════════════
 // The following features were moved to the Search tab:
@@ -48,7 +48,7 @@ export default function CoursesScreen() {
             return {
               courseId: String(c.id),
               courseTitle: c.title,
-              instructor: "Edodwaja Instructor",
+              instructor: "MakersFlow Instructor",
               thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
               progress: prog.percentage,
               totalModules: prog.total,

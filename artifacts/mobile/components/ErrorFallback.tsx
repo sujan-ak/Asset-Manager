@@ -1,5 +1,6 @@
 import { Feather } from "@expo/vector-icons";
 import { reloadAppAsync } from "expo";
+import { router } from "expo-router";
 import React, { useState } from "react";
 import {
   Modal,
@@ -95,6 +96,32 @@ export function ErrorFallback({ error, resetError }: ErrorFallbackProps) {
             ]}
           >
             Try Again
+          </Text>
+        </Pressable>
+
+        <Pressable
+          onPress={() => {
+            resetError();
+            if (router.canGoBack()) {
+              router.back();
+            } else {
+              router.replace("/(tabs)");
+            }
+          }}
+          style={({ pressed }) => [
+            styles.button,
+            styles.backButton,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              opacity: pressed ? 0.9 : 1,
+              transform: [{ scale: pressed ? 0.98 : 1 }],
+            },
+          ]}
+        >
+          <Feather name="arrow-left" size={16} color={colors.foreground} />
+          <Text style={[styles.buttonText, { color: colors.foreground }]}>
+            Go Back
           </Text>
         </Pressable>
       </View>
@@ -222,6 +249,15 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 3,
+  },
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    borderWidth: 1,
+    shadowOpacity: 0,
+    elevation: 0,
   },
   buttonText: {
     fontWeight: "600",

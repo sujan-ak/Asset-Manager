@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -39,7 +39,7 @@ export default function HelpScreen() {
             <Feather name="mail" size={20} color="#FFF" />
             <View>
               <Text style={styles.contactLabel}>Email Support</Text>
-              <Text style={styles.contactValue}>support@edodwaja.com</Text>
+              <Text style={styles.contactValue}>support@makersflow.com</Text>
             </View>
           </View>
           <View style={[styles.contactDivider, { backgroundColor: "rgba(255,255,255,0.2)" }]} />

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
@@ -27,12 +27,12 @@ export default function TermsOfServiceScreen() {
         <Text style={[styles.lastUpdated, { color: colors.mutedForeground }]}>Last updated: January 2025</Text>
 
         <Text style={[styles.body, { color: colors.foreground }]}>
-          These Terms of Service ("Terms") govern your access to and use of the Edodwaja mobile application ("App", "Service"). By creating an account or using Edodwaja, you agree to be bound by these Terms.
+          These Terms of Service ("Terms") govern your access to and use of the MakersFlow mobile application ("App", "Service"). By creating an account or using MakersFlow, you agree to be bound by these Terms.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>1. Acceptance of Terms</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          By registering for an account, accessing, or using the Edodwaja application, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these Terms, you may not use our Service.
+          By registering for an account, accessing, or using the MakersFlow application, you acknowledge that you have read, understood, and agree to be bound by these Terms of Service and our Privacy Policy. If you do not agree to these Terms, you may not use our Service.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
           If you are under 18 years of age, you represent that your parent or legal guardian has reviewed and agreed to these Terms on your behalf.
@@ -40,7 +40,7 @@ export default function TermsOfServiceScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>2. Description of Service</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Edodwaja is a mobile learning management system (LMS) that provides:
+          MakersFlow is a mobile learning management system (LMS) that provides:
         </Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Video-based STEM courses and educational content</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Interactive lessons, quizzes, and assessments</Text>
@@ -51,7 +51,7 @@ export default function TermsOfServiceScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>3. User Accounts</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          To access most features of Edodwaja, you must create an account. You agree to:
+          To access most features of MakersFlow, you must create an account. You agree to:
         </Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Provide accurate, current, and complete information during registration</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Maintain and promptly update your account information</Text>
@@ -65,7 +65,7 @@ export default function TermsOfServiceScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>4. Course Enrollment and Payments</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Edodwaja offers both free and paid courses. All prices are listed in Indian Rupees (INR) unless otherwise stated.
+          MakersFlow offers both free and paid courses. All prices are listed in Indian Rupees (INR) unless otherwise stated.
         </Text>
         
         <Text style={[styles.subheading, { color: colors.foreground }]}>Payment Processing</Text>
@@ -83,7 +83,7 @@ export default function TermsOfServiceScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>5. Content Ownership and Usage Rights</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          All course videos, materials, resources, quizzes, and other content provided through Edodwaja are the intellectual property of Edodwaja and our content partners. You are granted a limited, non-exclusive, non-transferable license to access and view the content solely for your personal, non-commercial educational use.
+          All course videos, materials, resources, quizzes, and other content provided through MakersFlow are the intellectual property of MakersFlow and our content partners. You are granted a limited, non-exclusive, non-transferable license to access and view the content solely for your personal, non-commercial educational use.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
           You may not:
@@ -99,7 +99,7 @@ export default function TermsOfServiceScreen() {
         </Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Sharing your account credentials or allowing unauthorized account access</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Attempting to bypass payment systems or access paid content without authorization</Text>
-        <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Harassing, abusing, or threatening other users or Edodwaja staff</Text>
+        <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Harassing, abusing, or threatening other users or MakersFlow staff</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Uploading malicious code, viruses, or harmful software</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Attempting to gain unauthorized access to our systems or databases</Text>
         <Text style={[styles.bulletItem, { color: colors.foreground }]}>• Impersonating others or providing false information</Text>
@@ -110,7 +110,7 @@ export default function TermsOfServiceScreen() {
           Upon successful completion of a course, you may receive a certificate of completion. These certificates are intended for personal and educational use to demonstrate your learning achievements.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Unless explicitly stated otherwise, Edodwaja certificates are not accredited academic credentials and do not replace formal education or professional certifications. They should not be misrepresented as such.
+          Unless explicitly stated otherwise, MakersFlow certificates are not accredited academic credentials and do not replace formal education or professional certifications. They should not be misrepresented as such.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>8. Account Termination</Text>
@@ -123,10 +123,10 @@ export default function TermsOfServiceScreen() {
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>9. Limitation of Liability</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Edodwaja and its content partners provide the Service on an "as is" and "as available" basis. We do not guarantee that the Service will be uninterrupted, error-free, or completely secure.
+          MakersFlow and its content partners provide the Service on an "as is" and "as available" basis. We do not guarantee that the Service will be uninterrupted, error-free, or completely secure.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          To the maximum extent permitted by law, Edodwaja shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of data, loss of learning progress, or loss of business opportunities arising from your use of the Service.
+          To the maximum extent permitted by law, MakersFlow shall not be liable for any indirect, incidental, special, consequential, or punitive damages, including but not limited to loss of data, loss of learning progress, or loss of business opportunities arising from your use of the Service.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>10. Changes to Terms</Text>
@@ -134,12 +134,12 @@ export default function TermsOfServiceScreen() {
           We may update these Terms of Service from time to time to reflect changes in our practices, technology, legal requirements, or for other operational reasons. When we make significant changes, we will notify you through the app or via email.
         </Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          Your continued use of Edodwaja after such changes constitutes your acceptance of the updated Terms. If you do not agree to the modified Terms, you must stop using the Service.
+          Your continued use of MakersFlow after such changes constitutes your acceptance of the updated Terms. If you do not agree to the modified Terms, you must stop using the Service.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>11. Governing Law</Text>
         <Text style={[styles.body, { color: colors.foreground }]}>
-          These Terms shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law provisions. Any disputes arising from these Terms or your use of Edodwaja shall be subject to the exclusive jurisdiction of the courts located in India.
+          These Terms shall be governed by and construed in accordance with the laws of India, without regard to its conflict of law provisions. Any disputes arising from these Terms or your use of MakersFlow shall be subject to the exclusive jurisdiction of the courts located in India.
         </Text>
 
         <Text style={[styles.sectionTitle, { color: colors.foreground }]}>12. Contact Us</Text>
@@ -147,7 +147,7 @@ export default function TermsOfServiceScreen() {
           If you have any questions about these Terms of Service, please contact us at:
         </Text>
         <Text style={[styles.body, { color: colors.foreground, fontWeight: "600" }]}>
-          Email: support@edodwaja.com
+          Email: support@makersflow.com
         </Text>
         <Text style={[styles.body, { color: colors.foreground, fontWeight: "600" }]}>
           Support: Settings → Help & Support

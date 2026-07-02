@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { router } from "expo-router";
-import React, { useState, useEffect } from "react";
+import { router, useFocusEffect } from "expo-router";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   Platform,
   Pressable,
@@ -22,12 +22,14 @@ import { WatchlistCard } from "@/components/WatchlistCard";
 import { LearningStreak } from "@/components/LearningStreak";
 import { ProductCard } from "@/components/ProductCard";
 import { useAuth } from "@/context/AuthContextSupabase";
-import { PRODUCTS } from "@/data/mockData";
+import { supabase } from "@/lib/supabase";
+import { Product } from "@/data/mockData";
 import { useColors } from "@/hooks/useColors";
 import { useProgress } from "@/context/ProgressContext";
 import { fetchAllCourses } from "@/services/courseDataProvider";
 import { fetchEnrolledCourses } from "@/services/enrollmentService";
 import { fetchCourseProgress } from "@/lib/progressStorage";
+import { ProgressCalculator } from "@/lib/progressCalculator";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -37,49 +39,99 @@ export default function HomeScreen() {
 
   const [courses, setCourses] = useState<any[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
+  const [popularKits, setPopularKits] = useState<Product[]>([]);
+  const [learningStreak, setLearningStreak] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const { refreshProgress } = useProgress();
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const all = await fetchAllCourses();
-        const mapped = all.map((c: any) => ({
-          id: String(c.id),
-          title: c.title,
-          category: c.category || "General",
-          level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
-          price: c.price || 0,
-          isFree: c.is_free,
-          thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
-          instructor: "Edodwaja Instructor",
-          rating: 4.8,
-          reviews: 120,
-          description: c.description || "",
-          modules: []
-        }));
-        setCourses(mapped);
+  useFocusEffect(
+    useCallback(() => {
+      async function loadData() {
+        try {
+          // Sync global progress context
+          await refreshProgress().catch(() => {});
 
-        if (user?.id) {
-          const enrollments = await fetchEnrolledCourses(user.id);
-          const mappedEnrolled = await Promise.all(
-            enrollments.map(async (enr: any) => {
-              const c = enr.courses;
-              const prog = await fetchCourseProgress(user.id, String(c.id));
-              return {
-                progress: prog.percentage,
-              };
-            })
-          );
-          setEnrolledCourses(mappedEnrolled);
+          const all = await fetchAllCourses();
+          const mapped = all.map((c: any) => ({
+            id: String(c.id),
+            title: c.title,
+            category: c.category || "General",
+            level: c.level ? (c.level.charAt(0).toUpperCase() + c.level.slice(1)) : "Beginner",
+            price: c.price || 0,
+            isFree: c.is_free,
+            thumbnail: c.thumbnail_url ? { uri: c.thumbnail_url } : require('@/assets/images/course_robotics.png'),
+            instructor: "MakersFlow Instructor",
+            rating: 4.8,
+            reviews: 120,
+            description: c.description || "",
+            modules: []
+          }));
+          setCourses(mapped);
+
+          if (user?.id) {
+            const enrollments = await fetchEnrolledCourses(user.id);
+            const mappedEnrolled = await Promise.all(
+              enrollments.map(async (enr: any) => {
+                const c = enr.courses;
+                const prog = await fetchCourseProgress(user.id, String(c.id));
+                return {
+                  progress: prog.percentage,
+                };
+              })
+            );
+            setEnrolledCourses(mappedEnrolled);
+
+            // Fetch lesson progress for calculating real streak
+            const { data: lpData } = await supabase
+              .from('lesson_progress')
+              .select('last_watched_at')
+              .eq('user_id', user.id);
+            if (lpData) {
+              const streak = ProgressCalculator.calculateStreak(lpData);
+              setLearningStreak(streak);
+            }
+          }
+
+          // Fetch real kits from Supabase
+          const { data: kitData, error: kitError } = await supabase
+            .from('products')
+            .select('id, title, description, price, original_price, category, subcategory, thumbnail_url, in_stock, badge')
+            .or('status.eq.available,status.eq.active')
+            .neq('category', 'digital')
+            .limit(5);
+
+          if (!kitError && kitData) {
+            const kitFallbacks = [
+              require('@/assets/images/product_kit_1.png'),
+              require('@/assets/images/product_kit_2.png'),
+              require('@/assets/images/product_kit_3.png'),
+            ];
+            const mappedKits: Product[] = kitData.map((row: any, idx: number) => ({
+              id: String(row.id),
+              title: row.title || "Untitled Product",
+              category: 'physical',
+              subcategory: row.subcategory || "Physical Kits",
+              price: Number(row.price) || 0,
+              originalPrice: Number(row.original_price) || Number(row.price) || 0,
+              thumbnail: row.thumbnail_url ? { uri: row.thumbnail_url } : kitFallbacks[idx % 3],
+              description: row.description || "No description available.",
+              rating: 4.5,
+              reviews: 0,
+              inStock: row.in_stock === undefined ? true : Boolean(row.in_stock),
+              badge: row.badge || undefined,
+              features: [],
+            }));
+            setPopularKits(mappedKits);
+          }
+        } catch (err) {
+          console.error('[Home] Error fetching courses:', err);
+        } finally {
+          setIsLoading(false);
         }
-      } catch (err) {
-        console.error('[Home] Error fetching courses:', err);
-      } finally {
-        setIsLoading(false);
       }
-    }
-    loadData();
-  }, [user?.id]);
+      loadData();
+    }, [user?.id])
+  );
 
   const completedCount = enrolledCourses.filter((p) => p.progress === 100).length;
   const avgProgress =
@@ -89,18 +141,29 @@ export default function HomeScreen() {
         )
       : 0;
 
-  // Mock learning streak (in real app, calculate from user activity)
-  const learningStreak = 5;
-
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
         <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 12, fontSize: 14, color: colors.mutedForeground, fontWeight: "500" }}>Loading...</Text>
       </View>
     );
   }
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour >= 5 && hour < 12) {
+      return "Good morning 👋";
+    } else if (hour >= 12 && hour < 17) {
+      return "Good afternoon 👋";
+    } else if (hour >= 17 && hour < 22) {
+      return "Good evening 👋";
+    } else {
+      return "Good night 👋";
+    }
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -108,7 +171,7 @@ export default function HomeScreen() {
       <View style={[styles.fixedHeader, { backgroundColor: colors.background, paddingTop: topPad + 16, borderBottomColor: colors.border }]}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>Good morning 👋</Text>
+            <Text style={[styles.greeting, { color: colors.mutedForeground }]}>{getGreeting()}</Text>
             <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name ?? "Student"}</Text>
           </View>
           <View style={styles.headerButtons}>
@@ -351,10 +414,10 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      {/* Ecosystem of Edodwaja */}
+      {/* Ecosystem of MakersFlow */}
       <View style={styles.section}>
         <View style={styles.sectionTitleContainer}>
-          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ecosystem of Edodwaja</Text>
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Ecosystem of MakersFlow</Text>
         </View>
         <View style={[styles.ecosystemCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.ecosystemHeader}>
@@ -362,7 +425,7 @@ export default function HomeScreen() {
             <Text style={[styles.ecosystemTitle, { color: colors.foreground }]}>Our Partners & Brands</Text>
           </View>
           <Text style={[styles.ecosystemDescription, { color: colors.mutedForeground }]}>
-            Discover the brands and partners that make up the Edodwaja ecosystem
+            Discover the brands and partners that make up the MakersFlow ecosystem
           </Text>
           <View style={styles.brandsContainer}>
             {/* Brand logos will be added here */}
@@ -420,7 +483,7 @@ export default function HomeScreen() {
           snapToInterval={SNAP_INTERVAL}
           decelerationRate="fast"
         >
-          {PRODUCTS.filter(p => p.category === "physical").slice(0, 5).map((product) => (
+          {popularKits.map((product) => (
             <ProductCard key={product.id} product={product} />
           ))}
           <Pressable 

@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import React from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { useColors } from "@/hooks/useColors";
@@ -14,7 +14,7 @@ export function LearningStreak({ streak, bestStreak = 7 }: LearningStreakProps) 
   return (
     <View style={[styles.container, { backgroundColor: colors.card, borderColor: colors.border }]}>
       <View style={[styles.iconContainer, { backgroundColor: "#FEF3C7" }]}>
-        <Text style={styles.fireEmoji}>🔥</Text>
+                <Text style={styles.fireEmoji}>🔥</Text>
       </View>
       
       <View style={styles.content}>

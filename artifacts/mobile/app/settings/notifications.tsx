@@ -1,4 +1,4 @@
-import { Feather } from "@expo/vector-icons";
+﻿import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useEffect, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Switch, Text, View, Alert } from "react-native";
@@ -15,7 +15,7 @@ const NOTIF_SETTINGS = [
   { key: "progress", label: "Progress Reports", sub: "Weekly learning summary" },
 ];
 
-const NOTIF_STORAGE_KEY = "@edodwaja_notification_prefs";
+const NOTIF_STORAGE_KEY = "@makersflow_notification_prefs";
 
 export default function NotificationsScreen() {
   const colors = useColors();

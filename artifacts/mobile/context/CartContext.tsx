@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+﻿import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { Product } from "@/data/mockData";
 
@@ -18,7 +18,7 @@ interface CartContextType {
 
 const CartContext = createContext<CartContextType | null>(null);
 
-const STORAGE_KEY = "@edodwaja_cart";
+const STORAGE_KEY = "@makersflow_cart";
 // Bump this number whenever the Product schema changes to invalidate stale caches.
 const CART_VERSION = 2;
 

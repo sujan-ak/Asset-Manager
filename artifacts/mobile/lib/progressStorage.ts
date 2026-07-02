@@ -23,6 +23,8 @@ export interface ModuleProgress {
   lastAccessedAt: string;
   completedAt?: string;
   timeSpent: number;
+  totalLessons?: number;
+  completedLessons?: number;
 }
 
 export interface VideoProgress {
@@ -297,6 +299,11 @@ export async function fetchRemoteProgress(userId: string): Promise<UserCoursePro
           lastAccessedAt: modLastAccessed,
           completedAt: modIsCompleted ? modLastAccessed : undefined,
           timeSpent: modTimeSpent,
+          totalLessons: modLessons.length,
+          completedLessons: modLessons.filter((les: any) => {
+            const p = progressList.find((x) => String(x.lesson_id) === String(les.id));
+            return p && p.is_completed;
+          }).length,
         };
 
         courseProgressObj.totalTimeSpent += modTimeSpent;

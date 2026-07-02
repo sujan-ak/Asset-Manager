@@ -27,6 +27,7 @@ interface ProgressContextType {
   completeModule: (courseId: string, moduleId: string) => Promise<void>;
   enrollCourse: (courseId: string) => Promise<void>;
   refreshWatchlist: () => Promise<void>;
+  refreshProgress: () => Promise<void>;
 }
 
 const ProgressContext = createContext<ProgressContextType | null>(null);
@@ -139,80 +140,12 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
     videoUrl: string
   ): Promise<void> {
     if (!user?.id) return;
-
-    let progress = courseProgress.get(courseId);
-
-    if (!progress) {
-      await enrollCourse(courseId);
-      progress = courseProgress.get(courseId);
-      if (!progress) return;
-    }
-
-    const now = new Date().toISOString();
-    const watchedPercentage = ProgressCalculator.calculateWatchedPercentage(
-      currentTime,
-      duration
-    );
-    const isCompleted = ProgressCalculator.isVideoCompleted(watchedPercentage);
-
-    const videoProgress: VideoProgress = {
-      videoUrl,
-      currentTime,
-      duration,
-      watchedPercentage,
-      isCompleted,
-      lastWatchedAt: now,
-    };
-
-    const moduleProgress: ModuleProgress = {
-      moduleId,
-      isCompleted,
-      isStarted: true,
-      videoProgress,
-      lastAccessedAt: now,
-      completedAt: isCompleted ? now : undefined,
-      timeSpent: progress.modules[moduleId]?.timeSpent || 0,
-    };
-
-    progress.modules[moduleId] = moduleProgress;
-    progress.lastAccessedAt = now;
-    progress.progress = ProgressCalculator.calculateCourseProgress(progress.modules);
-
-    if (progress.progress === 100 && !progress.completedAt) {
-      progress.completedAt = now;
-    }
-
-    await ProgressStorage.saveCourseProgress(progress);
-    setCourseProgress(new Map(courseProgress.set(courseId, progress)));
-    await updateWatchlist(courseId, moduleId, progress);
+    await loadAllProgress();
   }
 
   async function completeModule(courseId: string, moduleId: string): Promise<void> {
     if (!user?.id) return;
-
-    const progress = courseProgress.get(courseId);
-    if (!progress) return;
-
-    const now = new Date().toISOString();
-    const moduleProgress = progress.modules[moduleId];
-
-    if (moduleProgress) {
-      moduleProgress.isCompleted = true;
-      moduleProgress.completedAt = now;
-      moduleProgress.videoProgress.isCompleted = true;
-      moduleProgress.videoProgress.watchedPercentage = 100;
-    }
-
-    progress.progress = ProgressCalculator.calculateCourseProgress(progress.modules);
-    progress.lastAccessedAt = now;
-
-    if (progress.progress === 100 && !progress.completedAt) {
-      progress.completedAt = now;
-    }
-
-    await ProgressStorage.saveCourseProgress(progress);
-    setCourseProgress(new Map(courseProgress.set(courseId, progress)));
-    await updateWatchlist(courseId, moduleId, progress);
+    await loadAllProgress();
   }
 
   async function updateWatchlist(
@@ -294,6 +227,7 @@ export function ProgressProvider({ children }: { children: React.ReactNode }) {
         completeModule,
         enrollCourse,
         refreshWatchlist,
+        refreshProgress: loadAllProgress,
       }}
     >
       {children}

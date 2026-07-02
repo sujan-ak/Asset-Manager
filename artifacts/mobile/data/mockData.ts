@@ -1,5 +1,5 @@
-// ─────────────────────────────────────────────────────────────
-// mockData.ts  —  Edodwaja complete mock data
+﻿// ─────────────────────────────────────────────────────────────
+// mockData.ts  —  MakersFlow complete mock data
 // FIX: All courses are now inside the single COURSES array.
 // The original file closed the array after c5 and placed
 // c6-c13 as floating objects outside it — causing a syntax error.

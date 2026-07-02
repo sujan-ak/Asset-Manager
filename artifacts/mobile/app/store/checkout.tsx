@@ -191,7 +191,7 @@ export default function CheckoutScreen() {
           <!DOCTYPE html><html><head><meta charset="utf-8"/>
           <style>body{font-family:Arial,sans-serif;padding:40px;color:#111}h1{color:#4F46E5}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:10px;border:1px solid #e5e7eb;text-align:left}th{background:#f3f4f6}.total{font-size:18px;font-weight:bold;color:#4F46E5}.footer{margin-top:40px;font-size:12px;color:#9ca3af}</style>
           </head><body>
-          <h1>EDODWAJA</h1><p>Invoice</p>
+          <h1>MAKERSFLOW</h1><p>Invoice</p>
           <p><strong>Order ID:</strong> ${orderId}</p>
           <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
           <p><strong>Customer:</strong> ${name}</p>
@@ -201,15 +201,19 @@ export default function CheckoutScreen() {
           <p>Subtotal: ₹${total}</p>
           ${appliedPromo ? `<p style="color:#10B981">Promo (${appliedPromo.code}): -₹${discount}</p>` : ''}
           <p class="total">Total Paid: ₹${finalTotal}</p>
-          <div class="footer">Edodwaja · Learn · Explore · Excel</div>
+          <div class="footer">MakersFlow · Learn · Explore · Excel</div>
           </body></html>`;
-        const { uri } = await Print.printToFileAsync({ html: invoiceHtml, base64: false });
-        const dir = `${FileSystem.documentDirectory}invoices/`;
-        const dirInfo = await FileSystem.getInfoAsync(dir);
-        if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
-        const dest = `${dir}invoice_${orderId}.pdf`;
-        await FileSystem.moveAsync({ from: uri, to: dest });
-        await setInvoicePath(orderId, dest);
+        if (Platform.OS === 'web') {
+          await setInvoicePath(orderId, `html:${invoiceHtml}`);
+        } else {
+          const { uri } = await Print.printToFileAsync({ html: invoiceHtml, base64: false });
+          const dir = `${FileSystem.documentDirectory}invoices/`;
+          const dirInfo = await FileSystem.getInfoAsync(dir);
+          if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+          const dest = `${dir}invoice_${orderId}.pdf`;
+          await FileSystem.moveAsync({ from: uri, to: dest });
+          await setInvoicePath(orderId, dest);
+        }
       } catch (e) {
         console.error('[Checkout] Invoice generation failed:', e);
       }
