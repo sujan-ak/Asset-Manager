@@ -1,9 +1,24 @@
 import { Session, User as SupabaseUser } from '@supabase/supabase-js';
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { AppState, AppStateStatus } from 'react-native';
+import * as SecureStore from 'expo-secure-store';
+import * as Application from 'expo-application';
 import { Profile } from '@/types/auth';
 import * as authService from '@/services/authService';
+import { registerForPushNotifications } from '@/lib/notifications';
+import { supabase } from '@/lib/supabase';
+
+const SESSION_ID_KEY = 'edodwaja_session_id';
+
+function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
 
 // Configure WebBrowser for OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -31,6 +46,8 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  sessionInvalidated: boolean;
+  clearSessionInvalidated: () => void;
   login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
   register: (
     name: string,
@@ -51,6 +68,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [sessionInvalidated, setSessionInvalidated] = useState(false);
+  const userRef = useRef<User | null>(null);
+
+  // Keep ref in sync so AppState handler always has current user
+  useEffect(() => {
+    userRef.current = user;
+  }, [user]);
 
   useEffect(() => {
     // Get initial session
@@ -90,9 +114,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Subscribe to deep link events
     const linkingSubscription = Linking.addEventListener('url', handleDeepLink);
 
+    // AppState listener — enforce single-device session on resume
+    const handleAppStateChange = async (nextState: AppStateStatus) => {
+      if (nextState !== 'active') return;
+      const currentUser = userRef.current;
+      if (!currentUser) return;
+
+      try {
+        const localSessionId = await SecureStore.getItemAsync(SESSION_ID_KEY);
+        if (!localSessionId) return;
+
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('active_session_id')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+
+        if (profile && profile.active_session_id !== localSessionId) {
+          devLog('[Auth] Session mismatch — signing out');
+          await SecureStore.deleteItemAsync(SESSION_ID_KEY);
+          await authService.signOut();
+          setUser(null);
+          setSession(null);
+          setSessionInvalidated(true);
+        }
+      } catch (err: any) {
+        devError('[Auth] AppState session check error:', err.message);
+      }
+    };
+
+    const appStateSubscription = AppState.addEventListener('change', handleAppStateChange);
+
     return () => {
       subscription.unsubscribe();
       linkingSubscription.remove();
+      appStateSubscription.remove();
     };
   }, []);
 
@@ -127,6 +183,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           year: 'numeric',
         }),
       });
+
+      // Register push token after profile is confirmed (skip in Expo Go)
+      if (Application.applicationId !== 'host.exp.Exponent') {
+        registerForPushNotifications(profile.id).catch(() => {});
+      }
     } catch (error: any) {
       devError('[Auth] Error loading profile:', error.message);
     } finally {
@@ -292,6 +353,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.session) {
+        await writeSessionId(data.session.user.id);
         return { success: true };
       }
 
@@ -304,11 +366,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  async function writeSessionId(userId: string): Promise<void> {
+    try {
+      const sessionId = generateUUID();
+      await SecureStore.setItemAsync(SESSION_ID_KEY, sessionId);
+      await supabase
+        .from('profiles')
+        .update({ active_session_id: sessionId })
+        .eq('id', userId);
+      devLog('[Auth] Session ID written:', sessionId);
+    } catch (err: any) {
+      devError('[Auth] Failed to write session ID:', err.message);
+    }
+  }
+
   async function logout() {
     try {
       devLog('[Auth] Logging out...');
       setIsLoading(true);
-      
+
+      // Clear session ID from SecureStore and profiles row
+      if (user) {
+        try {
+          await SecureStore.deleteItemAsync(SESSION_ID_KEY);
+          await supabase
+            .from('profiles')
+            .update({ active_session_id: null })
+            .eq('id', user.id);
+        } catch (err: any) {
+          devError('[Auth] Failed to clear session ID on logout:', err.message);
+        }
+      }
+
       const { error } = await authService.signOut();
 
       if (error) {
@@ -321,7 +410,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setSession(null);
     } catch (error) {
       devError('[Auth] Logout exception:', error);
-      // Clear state even if signOut fails
       setUser(null);
       setSession(null);
     } finally {
@@ -437,11 +525,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  function clearSessionInvalidated() {
+    setSessionInvalidated(false);
+  }
+
   const value: AuthContextType = {
     user,
     session,
     isLoading,
     isAuthenticated: !!user && !!session,
+    sessionInvalidated,
+    clearSessionInvalidated,
     login,
     register,
     loginWithGoogle,

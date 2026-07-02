@@ -17,6 +17,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useColors } from "@/hooks/useColors";
+import { getProfile, getSession } from "@/services/authService";
 
 export default function LoginScreen() {
   const colors = useColors();
@@ -76,9 +77,20 @@ export default function LoginScreen() {
     
     const result = await login(email, password);
     setLoading(false);
-    
+
     if (result.success) {
-      router.replace("/(tabs)");
+      const { data: { session: freshSession } } = await getSession();
+      const userId = freshSession?.user?.id;
+      if (userId) {
+        const { data: profile } = await getProfile(userId);
+        if (!profile?.grade) {
+          router.replace("/(auth)/onboarding");
+        } else {
+          router.replace("/(tabs)");
+        }
+      } else {
+        router.replace("/(tabs)");
+      }
     } else {
       setError(result.error || "Invalid credentials. Please try again.");
     }

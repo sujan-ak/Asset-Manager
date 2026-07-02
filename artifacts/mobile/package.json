@@ -59,6 +59,9 @@
   "dependencies": {
     "@react-native-community/slider": "^5.0.1",
     "@supabase/supabase-js": "^2.108.0",
+    "expo-application": "~7.0.8",
+    "expo-device": "~8.0.10",
+    "expo-notifications": "~0.32.17",
     "expo-screen-orientation": "^9.0.9",
     "expo-secure-store": "~15.0.8",
     "expo-video": "~3.0.16"

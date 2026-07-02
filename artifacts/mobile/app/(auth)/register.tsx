@@ -29,14 +29,10 @@ export default function RegisterScreen() {
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
-  const [grade, setGrade] = useState("");
-  const [school, setSchool] = useState("");
   const [nameError, setNameError] = useState("");
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmError, setConfirmError] = useState("");
-  const [gradeError, setGradeError] = useState("");
-  const [schoolError, setSchoolError] = useState("");
 
   async function handleGoogleSignup() {
     setError("");
@@ -57,8 +53,6 @@ export default function RegisterScreen() {
     setEmailError("");
     setPasswordError("");
     setConfirmError("");
-    setGradeError("");
-    setSchoolError("");
     setError("");
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -90,16 +84,6 @@ export default function RegisterScreen() {
       hasError = true;
     } else if (password !== confirm) {
       setConfirmError("Passwords do not match");
-      hasError = true;
-    }
-
-    if (!grade) {
-      setGradeError("Grade is required");
-      hasError = true;
-    }
-
-    if (!school) {
-      setSchoolError("School is required");
       hasError = true;
     }
 
@@ -211,42 +195,6 @@ export default function RegisterScreen() {
               />
             </View>
             {confirmError ? <Text style={styles.fieldError}>{confirmError}</Text> : null}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { color: colors.foreground }]}>Grade</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: gradeError ? "#DC2626" : colors.border }]}>
-              <Feather name="book-open" size={16} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.input, { color: colors.foreground }]}
-                value={grade}
-                onChangeText={(text) => {
-                  setGrade(text);
-                  setGradeError("");
-                }}
-                placeholder="e.g., 10th Grade"
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
-            {gradeError ? <Text style={styles.fieldError}>{gradeError}</Text> : null}
-          </View>
-
-          <View style={styles.fieldGroup}>
-            <Text style={[styles.label, { color: colors.foreground }]}>School</Text>
-            <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: schoolError ? "#DC2626" : colors.border }]}>
-              <Feather name="home" size={16} color={colors.mutedForeground} />
-              <TextInput
-                style={[styles.input, { color: colors.foreground }]}
-                value={school}
-                onChangeText={(text) => {
-                  setSchool(text);
-                  setSchoolError("");
-                }}
-                placeholder="Your school name"
-                placeholderTextColor={colors.mutedForeground}
-              />
-            </View>
-            {schoolError ? <Text style={styles.fieldError}>{schoolError}</Text> : null}
           </View>
 
           <Pressable

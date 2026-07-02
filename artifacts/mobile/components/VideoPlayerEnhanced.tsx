@@ -32,6 +32,9 @@ interface VideoPlayerProps {
   onProgressUpdate?: (currentTime: number, duration: number) => void;
   onComplete?: () => void;
   onLoadingStateChange?: (isLoading: boolean) => void;
+  onAuthError?: () => void;
+  showAuthPrompt?: boolean;
+  onAuthPromptDismiss?: () => void;
 }
 
 export function VideoPlayerEnhanced({
@@ -40,6 +43,8 @@ export function VideoPlayerEnhanced({
   onProgressUpdate,
   onComplete,
   onLoadingStateChange,
+  showAuthPrompt = false,
+  onAuthPromptDismiss,
 }: VideoPlayerProps) {
   const colors = useColors();
   const [showControls, setShowControls] = useState(true);
@@ -50,6 +55,9 @@ export function VideoPlayerEnhanced({
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [lastStatus, setLastStatus] = useState<string>("");
+  const [videoError, setVideoError] = useState(false);
+  const [loadingTooLong, setLoadingTooLong] = useState(false);
+  const loadingTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // FIX: Dynamic dimensions that update on orientation change
   const [screenDims, setScreenDims] = useState(Dimensions.get("window"));
@@ -174,6 +182,14 @@ export function VideoPlayerEnhanced({
         setIsLoading(loading);
         onLoadingStateChange?.(loading);
 
+        if (!loading) {
+          if (loadingTimer.current) {
+            clearTimeout(loadingTimer.current);
+            loadingTimer.current = null;
+          }
+          if (isMounted.current) setLoadingTooLong(false);
+        }
+
         if (status !== lastStatus) {
           if (status === "readyToPlay" || status === "idle") {
             devLog(
@@ -182,9 +198,16 @@ export function VideoPlayerEnhanced({
               "Duration:",
               durationT
             );
+            if (isMounted.current) setVideoError(false);
           }
           if (status === "error") {
             devError("[VideoPlayer] Video error detected");
+            if (isMounted.current) setVideoError(true);
+          }
+          if (status === "loading" && !loadingTimer.current) {
+            loadingTimer.current = setTimeout(() => {
+              if (isMounted.current) setLoadingTooLong(true);
+            }, 15000);
           }
           setLastStatus(status);
         }
@@ -221,9 +244,8 @@ export function VideoPlayerEnhanced({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (hideTimer.current) {
-        clearTimeout(hideTimer.current);
-      }
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (loadingTimer.current) clearTimeout(loadingTimer.current);
     };
   }, []);
 
@@ -409,10 +431,85 @@ export function VideoPlayerEnhanced({
 
   const progressPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  const handleRetry = () => {
+    if (!player) return;
+    setVideoError(false);
+    setLoadingTooLong(false);
+    if (loadingTimer.current) clearTimeout(loadingTimer.current);
+    loadingTimer.current = null;
+    try {
+      player.replace(videoUrl);
+    } catch (err) {
+      devError("[VideoPlayer] Retry failed:", err);
+    }
+  };
+
   const renderVideoControls = () => (
     <>
-      {/* Loading Overlay */}
-      {isLoading && (
+      {/* Auth Prompt Overlay */}
+      {showAuthPrompt && (
+        <View style={styles.errorOverlay}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.card }]}>
+            <Feather name="lock" size={28} color="#F59E0B" style={{ marginBottom: 8 }} />
+            <Text style={[styles.errorTitle, { color: colors.foreground }]}>Session Expired</Text>
+            <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
+              Your session expired. Please sign in again to continue saving progress.
+            </Text>
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+              onPress={() => { onAuthPromptDismiss?.(); router.replace("/(auth)/login"); }}
+            >
+              <Text style={styles.retryButtonText}>Sign In Again</Text>
+            </Pressable>
+            <Pressable onPress={onAuthPromptDismiss} style={styles.dismissButton}>
+              <Text style={[styles.dismissText, { color: colors.mutedForeground }]}>Dismiss</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Video Error Overlay */}
+      {videoError && !showAuthPrompt && (
+        <View style={styles.errorOverlay}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.card }]}>
+            <Feather name="alert-circle" size={28} color="#DC2626" style={{ marginBottom: 8 }} />
+            <Text style={[styles.errorTitle, { color: colors.foreground }]}>Playback Error</Text>
+            <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
+              Something went wrong while loading the video.
+            </Text>
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+              onPress={handleRetry}
+            >
+              <Feather name="refresh-cw" size={14} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Loading Too Long Overlay */}
+      {loadingTooLong && !videoError && !showAuthPrompt && (
+        <View style={styles.errorOverlay}>
+          <View style={[styles.errorContainer, { backgroundColor: colors.card }]}>
+            <Feather name="wifi-off" size={28} color="#F59E0B" style={{ marginBottom: 8 }} />
+            <Text style={[styles.errorTitle, { color: colors.foreground }]}>Check your connection</Text>
+            <Text style={[styles.errorMessage, { color: colors.mutedForeground }]}>
+              The video is taking too long to load.
+            </Text>
+            <Pressable
+              style={[styles.retryButton, { backgroundColor: colors.primary }]}
+              onPress={handleRetry}
+            >
+              <Feather name="refresh-cw" size={14} color="#FFF" style={{ marginRight: 6 }} />
+              <Text style={styles.retryButtonText}>Retry</Text>
+            </Pressable>
+          </View>
+        </View>
+      )}
+
+      {/* Loading Overlay — only shown when not timed out */}
+      {isLoading && !loadingTooLong && !videoError && (
         <View style={styles.loadingOverlay}>
           <View
             style={[styles.loadingContainer, { backgroundColor: colors.card }]}
@@ -616,6 +713,58 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 14,
+    fontWeight: "600",
+  },
+  errorOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 20,
+    padding: 24,
+  },
+  errorContainer: {
+    width: "100%",
+    borderRadius: 16,
+    padding: 24,
+    alignItems: "center",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  errorTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  errorMessage: {
+    fontSize: 13,
+    textAlign: "center",
+    marginBottom: 16,
+    lineHeight: 18,
+  },
+  retryButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+    marginBottom: 8,
+  },
+  retryButtonText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  dismissButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+  },
+  dismissText: {
+    fontSize: 13,
     fontWeight: "600",
   },
   controlsOverlay: {

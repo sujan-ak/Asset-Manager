@@ -167,6 +167,7 @@ export async function upsertLessonProgress(
     { onConflict: 'user_id,lesson_id' },
   );
   if (error) console.error('[progress] upsert error', error);
+  return { error };
 }
 
 export async function fetchCourseProgress(userId: string, courseId: string) {

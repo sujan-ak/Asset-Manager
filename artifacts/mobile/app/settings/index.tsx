@@ -19,6 +19,12 @@ const SETTINGS = [
     route: "/settings/notifications",
   },
   {
+    icon: "message-square",
+    label: "Feedback",
+    sub: "Rate your experience",
+    route: "/settings/feedback",
+  },
+  {
     icon: "help-circle",
     label: "Help & Support",
     sub: "FAQs, contact & feedback",

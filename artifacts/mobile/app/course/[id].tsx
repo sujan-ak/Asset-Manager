@@ -8,6 +8,7 @@ import {
   Platform,
   Pressable,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -21,7 +22,7 @@ import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useFavorites } from "@/context/FavoritesContext";
 import { getCourseById, getCourseModules } from "@/services/courseDataProvider";
-import { enrollInCourse, isEnrolled as checkEnrollment } from "@/services/enrollmentService";
+import { enrollInCourse, getEnrollment, isExpired, Enrollment } from "@/services/enrollmentService";
 import { fetchCourseLessonsProgress } from "@/lib/progressStorage";
 import { ActivityIndicator } from "react-native";
 
@@ -36,6 +37,7 @@ export default function CourseDetailScreen() {
   const [modules, setModules] = useState<any[]>([]); // flat lessons
   const [lessonsProgress, setLessonsProgress] = useState<any[]>([]);
   const [isEnrolled, setIsEnrolled] = useState(false);
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const isFavorite = course ? isFavoriteCourse(course.id) : false;
@@ -83,10 +85,11 @@ export default function CourseDetailScreen() {
           setModules(flatLessons);
 
           if (user?.id) {
-            const enrolledStatus = await checkEnrollment(user.id, id);
-            setIsEnrolled(enrolledStatus);
+            const enrollmentData = await getEnrollment(user.id, id);
+            setEnrollment(enrollmentData);
+            setIsEnrolled(!!enrollmentData);
 
-            if (enrolledStatus) {
+            if (enrollmentData) {
               const progressData = await fetchCourseLessonsProgress(user.id, id);
               setLessonsProgress(progressData);
             }
@@ -138,6 +141,28 @@ export default function CourseDetailScreen() {
   const totalDurationMin = modules.reduce((sum, m) => sum + (m.duration_minutes || 0), 0);
   const displayDuration = totalDurationMin > 0 ? `${totalDurationMin} mins` : "Self-paced";
   const hasStarted = progress > 0;
+  const expired = isExpired(enrollment);
+
+  const handleRenewAccess = () => {
+    Alert.alert(
+      "Access Expired",
+      "Your 1-year access to this course has expired. Please contact support or re-enroll to continue learning.",
+      [{ text: "OK" }]
+    );
+  };
+
+  const handleShare = async () => {
+    await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    try {
+      await Share.share({
+        title: course.title,
+        message: `Check out "${course.title}" on EDODWAJA!\nhttps://edodwaja.com/course/${course.id}`,
+        url: `https://edodwaja.com/course/${course.id}`,
+      });
+    } catch (err) {
+      // user dismissed share sheet — no action needed
+    }
+  };
 
   const handleFavoriteToggle = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -161,8 +186,10 @@ export default function CourseDetailScreen() {
 
     try {
       await enrollInCourse(user.id, course.id, course.isFree);
+      const enrollmentData = await getEnrollment(user.id, course.id);
+      setEnrollment(enrollmentData);
       setIsEnrolled(true);
-      
+
       const progressData = await fetchCourseLessonsProgress(user.id, course.id);
       setLessonsProgress(progressData);
       
@@ -222,6 +249,12 @@ export default function CourseDetailScreen() {
             }}
           >
             <Feather name="arrow-left" size={20} color="#FFF" />
+          </Pressable>
+          <Pressable
+            style={[styles.shareCircle, { top: (Platform.OS === "web" ? 67 : insets.top) + 8 }]}
+            onPress={handleShare}
+          >
+            <Feather name="share-2" size={18} color="#FFF" />
           </Pressable>
           <View style={[styles.thumbnailBadge, { bottom: 16, left: 16 }]}>
             <Badge label={course.level} variant="primary" />
@@ -405,31 +438,41 @@ export default function CourseDetailScreen() {
         ]}
       >
         {isEnrolled ? (
-          <Pressable
-            style={[styles.ctaBtn, { backgroundColor: progress === 100 ? "#10B981" : colors.primary }]}
-            onPress={() => {
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-              const targetModuleId = lastModuleId ? String(lastModuleId) : (modules[0]?.id || "");
-              router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: targetModuleId } });
-            }}
-          >
-            {progress === 100 ? (
-              <>
-                <Feather name="award" size={18} color="#FFF" />
-                <Text style={styles.ctaBtnText}>Review Course</Text>
-              </>
-            ) : progress > 0 ? (
-              <>
-                <Feather name="play" size={18} color="#FFF" />
-                <Text style={styles.ctaBtnText}>Continue Learning · {progress}%</Text>
-              </>
-            ) : (
-              <>
-                <Feather name="play" size={18} color="#FFF" />
-                <Text style={styles.ctaBtnText}>Start Learning</Text>
-              </>
-            )}
-          </Pressable>
+          expired ? (
+            <Pressable
+              style={[styles.ctaBtn, { backgroundColor: "#DC2626" }]}
+              onPress={handleRenewAccess}
+            >
+              <Feather name="alert-circle" size={18} color="#FFF" />
+              <Text style={styles.ctaBtnText}>Renew Access</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              style={[styles.ctaBtn, { backgroundColor: progress === 100 ? "#10B981" : colors.primary }]}
+              onPress={() => {
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                const targetModuleId = lastModuleId ? String(lastModuleId) : (modules[0]?.id || "");
+                router.push({ pathname: "/course/learn", params: { courseId: course.id, moduleId: targetModuleId } });
+              }}
+            >
+              {progress === 100 ? (
+                <>
+                  <Feather name="award" size={18} color="#FFF" />
+                  <Text style={styles.ctaBtnText}>Review Course</Text>
+                </>
+              ) : progress > 0 ? (
+                <>
+                  <Feather name="play" size={18} color="#FFF" />
+                  <Text style={styles.ctaBtnText}>Continue Learning · {progress}%</Text>
+                </>
+              ) : (
+                <>
+                  <Feather name="play" size={18} color="#FFF" />
+                  <Text style={styles.ctaBtnText}>Start Learning</Text>
+                </>
+              )}
+            </Pressable>
+          )
         ) : (
           <View style={styles.ctaRow}>
             <View>
@@ -467,6 +510,16 @@ const styles = StyleSheet.create({
   backCircle: {
     position: "absolute",
     left: 16,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.4)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  shareCircle: {
+    position: "absolute",
+    right: 16,
     width: 40,
     height: 40,
     borderRadius: 20,

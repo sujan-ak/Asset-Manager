@@ -22,6 +22,7 @@ import { useAuth } from "@/context/AuthContextSupabase";
 import { useFavorites } from "@/context/FavoritesContext";
 import { getCourseById, getCourseModules } from "@/services/courseDataProvider";
 import { markLessonComplete, upsertLessonProgress, fetchCourseLessonsProgress } from "@/lib/progressStorage";
+import { getEnrollment, isExpired, Enrollment } from "@/services/enrollmentService";
 import { ActivityIndicator } from "react-native";
 
 export default function LearnScreen() {
@@ -40,6 +41,8 @@ export default function LearnScreen() {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [resumeFromTime, setResumeFromTime] = useState(0);
+  const [showVideoAuthPrompt, setShowVideoAuthPrompt] = useState(false);
+  const [enrollment, setEnrollment] = useState<Enrollment | null>(null);
   useEffect(() => {
     async function loadData() {
       if (!courseId) return;
@@ -84,6 +87,8 @@ export default function LearnScreen() {
           if (user?.id) {
             const progressData = await fetchCourseLessonsProgress(user.id, courseId);
             setLessonsProgress(progressData);
+            const enrollmentData = await getEnrollment(user.id, courseId);
+            setEnrollment(enrollmentData);
           }
         }
       } catch (error) {
@@ -130,6 +135,16 @@ export default function LearnScreen() {
   const initialTime = showResumeModal ? 0 : (activeLessonProgress?.current_time_secs ?? 0);
   const isSaved = activeModule ? isInWatchLater(activeModule.id) : false;
 
+  const expired = isExpired(enrollment);
+
+  const handleRenewAccess = () => {
+    Alert.alert(
+      "Access Expired",
+      "Your 1-year access to this course has expired. Please contact support or re-enroll to continue learning.",
+      [{ text: "OK" }]
+    );
+  };
+
   const showToast = (message: string) => {
     if (Platform.OS === 'android') {
       ToastAndroid.show(message, ToastAndroid.SHORT);
@@ -155,7 +170,11 @@ export default function LearnScreen() {
   const handleProgressUpdate = async (currentTime: number, duration: number) => {
     if (!user?.id || !courseId || !activeModule?.id) return;
     const watchPercentage = duration > 0 ? (currentTime / duration) * 100 : 0;
-    await upsertLessonProgress(user.id, courseId, activeModule.id, currentTime, watchPercentage);
+    const { error } = await upsertLessonProgress(user.id, courseId, activeModule.id, currentTime, watchPercentage);
+    if (error && (error as any).status === 401) {
+      setShowVideoAuthPrompt(true);
+      return;
+    }
     try {
       const progressData = await fetchCourseLessonsProgress(user.id, courseId);
       setLessonsProgress(progressData);
@@ -338,12 +357,29 @@ export default function LearnScreen() {
 
       {/* Video Player - Compact 25% screen */}
       <View style={styles.videoWrapper}>
-        <VideoPlayerEnhanced
-          videoUrl={activeModule.videoUrl}
-          initialTime={initialTime}
-          onProgressUpdate={handleProgressUpdate}
-          onComplete={handleVideoComplete}
-        />
+        {expired ? (
+          <View style={[styles.expiredBanner, { backgroundColor: "#FEF2F2" }]}>
+            <Feather name="lock" size={28} color="#DC2626" />
+            <Text style={styles.expiredTitle}>Your access has expired</Text>
+            <Text style={styles.expiredSub}>Your 1-year access to this course has ended.</Text>
+            <Pressable
+              style={styles.renewBtn}
+              onPress={handleRenewAccess}
+            >
+              <Text style={styles.renewBtnText}>Renew Access</Text>
+            </Pressable>
+          </View>
+        ) : (
+          <VideoPlayerEnhanced
+            videoUrl={activeModule.videoUrl}
+            initialTime={initialTime}
+            onProgressUpdate={handleProgressUpdate}
+            onComplete={handleVideoComplete}
+            onAuthError={() => setShowVideoAuthPrompt(true)}
+            showAuthPrompt={showVideoAuthPrompt}
+            onAuthPromptDismiss={() => setShowVideoAuthPrompt(false)}
+          />
+        )}
       </View>
 
       {/* Mark Complete Button */}
@@ -580,6 +616,37 @@ const styles = StyleSheet.create({
   videoWrapper: {
     width: "100%",
     maxHeight: 220,
+  },
+  expiredBanner: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    padding: 24,
+  },
+  expiredTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: "#DC2626",
+    textAlign: "center",
+  },
+  expiredSub: {
+    fontSize: 13,
+    color: "#991B1B",
+    textAlign: "center",
+  },
+  renewBtn: {
+    marginTop: 8,
+    backgroundColor: "#DC2626",
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    borderRadius: 10,
+  },
+  renewBtnText: {
+    color: "#FFF",
+    fontSize: 14,
+    fontWeight: "700",
   },
 
   // Mark Complete Button

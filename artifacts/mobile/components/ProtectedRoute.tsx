@@ -1,23 +1,35 @@
-import { Redirect, useSegments } from 'expo-router';
+import { Redirect, useSegments, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { ActivityIndicator, View, StyleSheet } from 'react-native';
+import { ActivityIndicator, Alert, View, StyleSheet } from 'react-native';
 import { useAuth } from '@/context/AuthContextSupabase';
 import { useColors } from '@/hooks/useColors';
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading, sessionInvalidated, clearSessionInvalidated } = useAuth();
   const segments = useSegments();
+  const router = useRouter();
   const colors = useColors();
+
+  useEffect(() => {
+    if (sessionInvalidated) {
+      clearSessionInvalidated();
+      // Navigate first, then show alert so the screen is visible behind the dialog
+      router.replace('/(auth)/login');
+      Alert.alert(
+        'Signed Out',
+        'Your account was signed in on another device. You have been signed out.',
+        [{ text: 'OK' }]
+      );
+    }
+  }, [sessionInvalidated]);
 
   useEffect(() => {
     const inAuthGroup = segments[0] === '(auth)';
 
     if (!isLoading) {
       if (!isAuthenticated && !inAuthGroup) {
-        // Redirect to login if not authenticated and trying to access protected route
         console.log('[ProtectedRoute] Redirecting to login - not authenticated');
       } else if (isAuthenticated && inAuthGroup) {
-        // Redirect to home if authenticated and trying to access auth screens
         console.log('[ProtectedRoute] Redirecting to home - already authenticated');
       }
     }

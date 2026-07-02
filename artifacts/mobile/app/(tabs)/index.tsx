@@ -28,6 +28,7 @@ import { useProgress } from "@/context/ProgressContext";
 import { fetchAllCourses } from "@/services/courseDataProvider";
 import { fetchEnrolledCourses } from "@/services/enrollmentService";
 import { fetchCourseProgress } from "@/lib/progressStorage";
+import { supabase } from "@/lib/supabase";
 
 export default function HomeScreen() {
   const colors = useColors();
@@ -38,6 +39,7 @@ export default function HomeScreen() {
   const [courses, setCourses] = useState<any[]>([]);
   const [enrolledCourses, setEnrolledCourses] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
     async function loadData() {
@@ -81,6 +83,16 @@ export default function HomeScreen() {
     loadData();
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!user?.id) return;
+    supabase
+      .from('notifications')
+      .select('id', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('read', false)
+      .then(({ count }) => setUnreadCount(count ?? 0));
+  }, [user?.id]);
+
   const completedCount = enrolledCourses.filter((p) => p.progress === 100).length;
   const avgProgress =
     enrolledCourses.length > 0
@@ -112,6 +124,17 @@ export default function HomeScreen() {
             <Text style={[styles.userName, { color: colors.foreground }]}>{user?.name ?? "Student"}</Text>
           </View>
           <View style={styles.headerButtons}>
+            <Pressable
+              style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
+              onPress={() => router.push("/notifications")}
+            >
+              <Feather name="bell" size={20} color={colors.foreground} />
+              {unreadCount > 0 && (
+                <View style={[styles.badge, { backgroundColor: colors.primary }]}>
+                  <Text style={styles.badgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
+            </Pressable>
             <Pressable
               style={[styles.iconBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
               onPress={() => router.push("/(tabs)/news")}
@@ -464,6 +487,22 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     borderWidth: 1,
+  },
+  badge: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    minWidth: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+  },
+  badgeText: {
+    color: "#FFF",
+    fontSize: 9,
+    fontWeight: "700",
   },
   notifDot: {
     width: 8,
