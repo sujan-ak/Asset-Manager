@@ -13,6 +13,12 @@ const SETTINGS = [
     route: "/settings/security",
   },
   {
+    icon: "shield",
+    label: "Login Activity",
+    sub: "View recent logins & suspicious access",
+    route: "/settings/security-log",
+  },
+  {
     icon: "bell",
     label: "Notifications",
     sub: "Manage your alerts",

@@ -1,11 +1,14 @@
 import { Feather } from "@expo/vector-icons";
 import { router } from "expo-router";
 import React, { useState, useEffect } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
+import { Alert, Platform, Pressable, ScrollView, StyleSheet, Text, View, ActivityIndicator } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { supabase } from "@/lib/supabase";
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system/legacy';
+import { getInvoicePath } from '@/lib/invoiceStorage';
 
 export default function OrdersScreen() {
   const colors = useColors();
@@ -13,6 +16,8 @@ export default function OrdersScreen() {
   const { user } = useAuth();
   const [orders, setOrders] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [invoicePaths, setInvoicePaths] = useState<Record<string, string>>({});
+  const [sharingId, setSharingId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadOrders() {
@@ -26,6 +31,7 @@ export default function OrdersScreen() {
           .from('orders')
           .select('*')
           .eq('user_id', user.id)
+          .eq('status', 'completed')
           .order('created_at', { ascending: false });
 
         if (error) {
@@ -52,6 +58,17 @@ export default function OrdersScreen() {
             };
           });
           setOrders(mapped);
+
+          // Load invoice paths for each order
+          const paths: Record<string, string> = {};
+          await Promise.all(mapped.map(async (o: any) => {
+            const p = await getInvoicePath(o.id);
+            if (p) {
+              const info = await FileSystem.getInfoAsync(p);
+              if (info.exists) paths[o.id] = p;
+            }
+          }));
+          setInvoicePaths(paths);
         }
       } catch (err) {
         console.error('[Orders] Load error:', err);
@@ -63,6 +80,48 @@ export default function OrdersScreen() {
   }, [user?.id]);
 
   const topPad = Platform.OS === "web" ? 67 : insets.top;
+
+  const handleRefundRequest = (orderId: string) => {
+    Alert.alert(
+      'Request Refund',
+      'Please briefly describe your reason for requesting a refund.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Submit',
+          onPress: async () => {
+            if (!user?.id) return;
+            const { error } = await supabase
+              .from('refund_requests')
+              .insert({ user_id: user.id, order_id: orderId, status: 'pending' });
+            if (error) {
+              Alert.alert('Error', 'Failed to submit refund request. Please try again.');
+            } else {
+              Alert.alert('Submitted', 'Your refund request has been submitted. Our team will review it shortly.');
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleShareInvoice = async (orderId: string) => {
+    const path = invoicePaths[orderId];
+    if (!path) { Alert.alert('No invoice', 'Invoice not available for this order.'); return; }
+    setSharingId(orderId);
+    try {
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(path, { mimeType: 'application/pdf', dialogTitle: 'Download Invoice' });
+      } else {
+        Alert.alert('Saved', `Invoice at:\n${path}`);
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Could not share invoice.');
+    } finally {
+      setSharingId(null);
+    }
+  };
 
   if (isLoading) {
     return (
@@ -122,6 +181,27 @@ export default function OrdersScreen() {
                 <Text style={[styles.totalLabel, { color: colors.mutedForeground }]}>Total Paid</Text>
                 <Text style={[styles.totalAmount, { color: colors.primary }]}>₹{order.total}</Text>
               </View>
+              {invoicePaths[order.id] && (
+                <Pressable
+                  style={[styles.invoiceBtn, { borderColor: colors.border }]}
+                  onPress={() => handleShareInvoice(order.id)}
+                  disabled={sharingId === order.id}
+                >
+                  <Feather name="download" size={14} color={colors.primary} />
+                  <Text style={[styles.invoiceBtnText, { color: colors.primary }]}>
+                    {sharingId === order.id ? 'Opening...' : 'Download Invoice'}
+                  </Text>
+                </Pressable>
+              )}
+              {order.status === 'Completed' && (
+                <Pressable
+                  style={[styles.refundBtn, { borderColor: '#FCA5A5' }]}
+                  onPress={() => handleRefundRequest(order.id)}
+                >
+                  <Feather name="rotate-ccw" size={14} color="#DC2626" />
+                  <Text style={[styles.refundBtnText]}>Request Refund</Text>
+                </Pressable>
+              )}
             </View>
           ))
         )}
@@ -153,4 +233,8 @@ const styles = StyleSheet.create({
   totalRow: { flexDirection: "row", justifyContent: "space-between", paddingTop: 10, borderTopWidth: 1, marginTop: 4 },
   totalLabel: { fontSize: 13 },
   totalAmount: { fontSize: 16, fontWeight: "700" },
+  invoiceBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, alignSelf: 'flex-start' },
+  invoiceBtnText: { fontSize: 13, fontWeight: '600' },
+  refundBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8, borderWidth: 1, alignSelf: 'flex-start', backgroundColor: '#FEF2F2' },
+  refundBtnText: { fontSize: 13, fontWeight: '600', color: '#DC2626' },
 });

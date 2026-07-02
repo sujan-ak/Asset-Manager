@@ -2,8 +2,12 @@ import { Session, User as SupabaseUser } from '@supabase/supabase-js';
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import * as WebBrowser from 'expo-web-browser';
 import * as Linking from 'expo-linking';
+import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Device from 'expo-device';
 import { Profile } from '@/types/auth';
 import * as authService from '@/services/authService';
+import { supabase } from '@/lib/supabase';
 
 // Configure WebBrowser for OAuth
 WebBrowser.maybeCompleteAuthSession();
@@ -281,6 +285,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string
   ): Promise<{ success: boolean; error?: string }> {
+    // NOTE: server-side rate limiting via Supabase or reverse proxy required for production
+    const ATTEMPTS_KEY = 'login_attempts';
+    const MAX_ATTEMPTS = 5;
+    const WINDOW_MS = 10 * 60 * 1000;  // 10 minutes
+    const LOCKOUT_MS = 15 * 60 * 1000; // 15 minutes
+
+    try {
+      const raw = await AsyncStorage.getItem(ATTEMPTS_KEY);
+      const attempts = raw ? JSON.parse(raw) : { count: 0, firstAttemptAt: Date.now() };
+      const now = Date.now();
+
+      // Check lockout
+      if (attempts.count >= MAX_ATTEMPTS) {
+        const lockedUntil = attempts.firstAttemptAt + LOCKOUT_MS;
+        if (now < lockedUntil) {
+          const minsLeft = Math.ceil((lockedUntil - now) / 60000);
+          return { success: false, error: `Too many failed attempts. Try again in ${minsLeft} minute${minsLeft !== 1 ? 's' : ''}.` };
+        }
+        // Lockout expired — reset
+        await AsyncStorage.removeItem(ATTEMPTS_KEY);
+      }
+    } catch {
+      // AsyncStorage failure — proceed with login
+    }
+
     try {
       setIsLoading(true);
 
@@ -288,10 +317,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         devError('[Auth] Login error:', error);
+        // Increment failed attempt counter
+        try {
+          const raw = await AsyncStorage.getItem(ATTEMPTS_KEY);
+          const now = Date.now();
+          const attempts = raw ? JSON.parse(raw) : { count: 0, firstAttemptAt: now };
+          // Reset window if outside 10-minute window
+          const inWindow = (now - attempts.firstAttemptAt) < WINDOW_MS;
+          const updated = inWindow
+            ? { count: attempts.count + 1, firstAttemptAt: attempts.firstAttemptAt }
+            : { count: 1, firstAttemptAt: now };
+          await AsyncStorage.setItem(ATTEMPTS_KEY, JSON.stringify(updated));
+        } catch {
+          // ignore
+        }
         return { success: false, error: error.message };
       }
 
       if (data.session) {
+        // Clear failed attempts on success
+        await AsyncStorage.removeItem(ATTEMPTS_KEY).catch(() => {});
+        // Record login event and check for suspicious activity
+        await recordLoginEvent(data.session.user.id).catch(() => {});
         return { success: true };
       }
 
@@ -301,6 +348,39 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       return { success: false, error: error.message || 'An unexpected error occurred' };
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function recordLoginEvent(userId: string): Promise<void> {
+    const deviceInfo = [
+      Device.modelName,
+      Device.osName,
+      Device.osVersion,
+      Platform.OS,
+    ].filter(Boolean).join(' | ');
+
+    // Check last login within 1 hour from a different device
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: recent } = await supabase
+      .from('login_events')
+      .select('device_info, created_at')
+      .eq('user_id', userId)
+      .gte('created_at', oneHourAgo)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const isFlagged = !!(recent && recent.device_info && recent.device_info !== deviceInfo);
+
+    await supabase.from('login_events').insert({
+      user_id: userId,
+      device_info: deviceInfo,
+      is_flagged: isFlagged,
+    });
+
+    if (isFlagged) {
+      // Log for now — email alert via Edge Function is a future step
+      devLog('[Auth] Suspicious login detected — different device within 1 hour');
     }
   }
 

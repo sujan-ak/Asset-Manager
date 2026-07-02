@@ -15,6 +15,7 @@ import {
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Alert } from "react-native";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { useColors } from "@/hooks/useColors";
 
@@ -33,6 +34,7 @@ export default function LoginScreen() {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [phoneError, setPhoneError] = useState("");
+  const [otpProvider, setOtpProvider] = useState<'sms' | 'whatsapp'>('sms');
 
   async function handleGoogleLogin() {
     setError("");
@@ -105,6 +107,11 @@ export default function LoginScreen() {
     let formattedPhone = phone.trim();
     if (!formattedPhone.startsWith("+")) {
       formattedPhone = "+91" + digitsOnly;
+    }
+
+    if (otpProvider === 'whatsapp') {
+      Alert.alert('Coming Soon', 'WhatsApp OTP will be available soon.');
+      return;
     }
 
     setPhoneLoading(true);
@@ -238,6 +245,25 @@ export default function LoginScreen() {
             <View style={[styles.divider, { backgroundColor: colors.border }]} />
           </View>
 
+          <View style={styles.providerToggle}>
+            {(['sms', 'whatsapp'] as const).map((p) => (
+              <Pressable
+                key={p}
+                style={[styles.providerBtn, otpProvider === p && { backgroundColor: colors.primary }]}
+                onPress={() => setOtpProvider(p)}
+              >
+                <Feather
+                  name={p === 'sms' ? 'message-square' : 'message-circle'}
+                  size={14}
+                  color={otpProvider === p ? '#fff' : colors.mutedForeground}
+                />
+                <Text style={[styles.providerBtnText, { color: otpProvider === p ? '#fff' : colors.mutedForeground }]}>
+                  {p === 'sms' ? 'SMS' : 'WhatsApp'}
+                </Text>
+              </Pressable>
+            ))}
+          </View>
+
           <View style={styles.fieldGroup}>
             <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: phoneError ? "#DC2626" : colors.border }]}>
               <Feather name="smartphone" size={16} color={colors.mutedForeground} />
@@ -344,4 +370,21 @@ const styles = StyleSheet.create({
   footerText: { fontSize: 14 },
   registerLink: { fontSize: 14, fontWeight: "700" },
   fieldError: { fontSize: 12, color: "#DC2626", marginTop: 4 },
+  providerToggle: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  providerBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    backgroundColor: '#F3F4F6',
+  },
+  providerBtnText: { fontSize: 13, fontWeight: '600' },
 });

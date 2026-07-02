@@ -19,6 +19,9 @@ import { useCart } from "@/context/CartContext";
 import { useColors } from "@/hooks/useColors";
 import { useAuth } from "@/context/AuthContextSupabase";
 import { supabase } from "@/lib/supabase";
+import * as Print from 'expo-print';
+import * as FileSystem from 'expo-file-system/legacy';
+import { setInvoicePath } from '@/lib/invoiceStorage';
 
 export default function CheckoutScreen() {
   const colors = useColors();
@@ -31,6 +34,13 @@ export default function CheckoutScreen() {
   const [city, setCity] = useState("");
   const [phone, setPhone] = useState("");
   const [loading, setLoading] = useState(false);
+  const [promoCode, setPromoCode] = useState("");
+  const [promoLoading, setPromoLoading] = useState(false);
+  const [promoError, setPromoError] = useState("");
+  const [appliedPromo, setAppliedPromo] = useState<{ code: string; discount_percent: number; id: string } | null>(null);
+
+  const discount = appliedPromo ? Math.round(total * appliedPromo.discount_percent / 100) : 0;
+  const finalTotal = total - discount;
   const topPad = Platform.OS === "web" ? 67 : insets.top;
 
   const hasPhysical = items.some((i) => i.product.category === "physical");
@@ -59,6 +69,32 @@ export default function CheckoutScreen() {
     loadProfile();
   }, [user?.id]);
 
+  async function handleApplyPromo() {
+    const code = promoCode.trim().toUpperCase();
+    if (!code) return;
+    setPromoError("");
+    setPromoLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('promo_codes')
+        .select('id, code, discount_percent, expiry_at, usage_limit, used_count, is_active')
+        .eq('code', code)
+        .maybeSingle();
+
+      if (error || !data) { setPromoError('Invalid promo code.'); return; }
+      if (!data.is_active) { setPromoError('This promo code is no longer active.'); return; }
+      if (data.expiry_at && new Date(data.expiry_at) < new Date()) { setPromoError('This promo code has expired.'); return; }
+      if (data.usage_limit !== null && data.used_count >= data.usage_limit) { setPromoError('This promo code has reached its usage limit.'); return; }
+
+      setAppliedPromo({ code: data.code, discount_percent: data.discount_percent, id: data.id });
+      await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch {
+      setPromoError('Failed to validate promo code.');
+    } finally {
+      setPromoLoading(false);
+    }
+  }
+
   async function handleOrder() {
     if (hasPhysical && (!name || !address || !city || !phone)) {
       Alert.alert("Incomplete", "Please fill in all shipping details.");
@@ -81,8 +117,9 @@ export default function CheckoutScreen() {
         .from('orders')
         .insert({
           user_id: user.id,
-          total_amount: total,
+          total_amount: finalTotal,
           status: 'completed',
+          promo_code: appliedPromo?.code ?? null,
           shipping_address: {
             name,
             address,
@@ -98,6 +135,21 @@ export default function CheckoutScreen() {
         });
 
       if (orderError) throw orderError;
+
+      // Increment promo used_count after successful order
+      if (appliedPromo) {
+        const { data: promoData } = await supabase
+          .from('promo_codes')
+          .select('used_count')
+          .eq('id', appliedPromo.id)
+          .single();
+        if (promoData) {
+          await supabase
+            .from('promo_codes')
+            .update({ used_count: promoData.used_count + 1 })
+            .eq('id', appliedPromo.id);
+        }
+      }
 
       // 2. Enroll user in purchased courses
       for (const item of items) {
@@ -131,7 +183,38 @@ export default function CheckoutScreen() {
 
       await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       clearCart();
-      Alert.alert("Order Placed Successfully!", "Your order has been recorded.", [
+
+      // Generate invoice PDF
+      try {
+        const orderId = Date.now().toString();
+        const invoiceHtml = `
+          <!DOCTYPE html><html><head><meta charset="utf-8"/>
+          <style>body{font-family:Arial,sans-serif;padding:40px;color:#111}h1{color:#4F46E5}table{width:100%;border-collapse:collapse;margin:20px 0}th,td{padding:10px;border:1px solid #e5e7eb;text-align:left}th{background:#f3f4f6}.total{font-size:18px;font-weight:bold;color:#4F46E5}.footer{margin-top:40px;font-size:12px;color:#9ca3af}</style>
+          </head><body>
+          <h1>EDODWAJA</h1><p>Invoice</p>
+          <p><strong>Order ID:</strong> ${orderId}</p>
+          <p><strong>Date:</strong> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}</p>
+          <p><strong>Customer:</strong> ${name}</p>
+          <table><thead><tr><th>Item</th><th>Price</th><th>Qty</th><th>Subtotal</th></tr></thead><tbody>
+          ${items.map(i => `<tr><td>${i.product.title}</td><td>₹${i.product.price}</td><td>${i.quantity}</td><td>₹${i.product.price * i.quantity}</td></tr>`).join('')}
+          </tbody></table>
+          <p>Subtotal: ₹${total}</p>
+          ${appliedPromo ? `<p style="color:#10B981">Promo (${appliedPromo.code}): -₹${discount}</p>` : ''}
+          <p class="total">Total Paid: ₹${finalTotal}</p>
+          <div class="footer">Edodwaja · Learn · Explore · Excel</div>
+          </body></html>`;
+        const { uri } = await Print.printToFileAsync({ html: invoiceHtml, base64: false });
+        const dir = `${FileSystem.documentDirectory}invoices/`;
+        const dirInfo = await FileSystem.getInfoAsync(dir);
+        if (!dirInfo.exists) await FileSystem.makeDirectoryAsync(dir, { intermediates: true });
+        const dest = `${dir}invoice_${orderId}.pdf`;
+        await FileSystem.moveAsync({ from: uri, to: dest });
+        await setInvoicePath(orderId, dest);
+      } catch (e) {
+        console.error('[Checkout] Invoice generation failed:', e);
+      }
+
+      Alert.alert("Order Placed Successfully!", `Your order of ₹${finalTotal} has been recorded.${appliedPromo ? ` You saved ₹${discount}!` : ''}`, [
         { text: "View Orders", onPress: () => router.replace("/store/orders") },
         { text: "OK", onPress: () => router.replace("/(tabs)") },
       ]);
@@ -197,10 +280,53 @@ export default function CheckoutScreen() {
               </View>
             ))}
             <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
+              <Text style={[styles.totalLabel, { color: colors.foreground }]}>Subtotal</Text>
+              <Text style={[styles.totalAmount, { color: colors.foreground }]}>₹{total}</Text>
+            </View>
+            {appliedPromo && (
+              <View style={styles.discountRow}>
+                <Text style={styles.discountLabel}>Promo ({appliedPromo.code}) -{appliedPromo.discount_percent}%</Text>
+                <Text style={styles.discountAmount}>-₹{discount}</Text>
+              </View>
+            )}
+            <View style={[styles.totalRow, { borderTopColor: colors.border }]}>
               <Text style={[styles.totalLabel, { color: colors.foreground }]}>Total</Text>
-              <Text style={[styles.totalAmount, { color: colors.primary }]}>₹{total}</Text>
+              <Text style={[styles.totalAmount, { color: colors.primary }]}>₹{finalTotal}</Text>
             </View>
           </View>
+
+          {/* Promo code */}
+          <Text style={[styles.sectionTitle, { color: colors.foreground }]}>Promo Code</Text>
+          {appliedPromo ? (
+            <View style={[styles.promoApplied, { backgroundColor: '#DCFCE7', borderColor: '#10B981' }]}>
+              <Feather name="check-circle" size={16} color="#10B981" />
+              <Text style={styles.promoAppliedText}>{appliedPromo.code} — {appliedPromo.discount_percent}% off applied!</Text>
+              <Pressable onPress={() => { setAppliedPromo(null); setPromoCode(''); }} hitSlop={8}>
+                <Feather name="x" size={16} color="#6B7280" />
+              </Pressable>
+            </View>
+          ) : (
+            <View style={styles.promoRow}>
+              <View style={[styles.inputWrapper, { backgroundColor: colors.card, borderColor: promoError ? '#DC2626' : colors.border, flex: 1 }]}>
+                <TextInput
+                  style={[styles.input, { color: colors.foreground }]}
+                  value={promoCode}
+                  onChangeText={(t) => { setPromoCode(t.toUpperCase()); setPromoError(''); }}
+                  placeholder="Enter promo code"
+                  placeholderTextColor={colors.mutedForeground}
+                  autoCapitalize="characters"
+                />
+              </View>
+              <Pressable
+                style={[styles.promoBtn, { backgroundColor: colors.primary, opacity: promoLoading ? 0.7 : 1 }]}
+                onPress={handleApplyPromo}
+                disabled={promoLoading}
+              >
+                {promoLoading ? <ActivityIndicator size="small" color="#fff" /> : <Text style={styles.promoBtnText}>Apply</Text>}
+              </Pressable>
+            </View>
+          )}
+          {promoError ? <Text style={styles.promoError}>{promoError}</Text> : null}
 
           {/* Delivery details or Contact details depending on product type */}
           {hasPhysical ? (
@@ -276,7 +402,7 @@ export default function CheckoutScreen() {
               <ActivityIndicator color="#FFF" />
             ) : (
               <>
-                <Text style={styles.orderBtnText}>Place Order · ₹{total}</Text>
+                <Text style={styles.orderBtnText}>Place Order · ₹{finalTotal}</Text>
                 <Feather name="arrow-right" size={18} color="#FFF" />
               </>
             )}
@@ -345,4 +471,13 @@ const styles = StyleSheet.create({
     borderRadius: 14,
   },
   orderBtnText: { fontSize: 16, fontWeight: "700", color: "#FFF" },
+  promoRow: { flexDirection: 'row', gap: 10, alignItems: 'center', marginBottom: 4 },
+  promoBtn: { paddingHorizontal: 18, paddingVertical: 14, borderRadius: 12 },
+  promoBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  promoApplied: { flexDirection: 'row', alignItems: 'center', gap: 8, padding: 12, borderRadius: 10, borderWidth: 1, marginBottom: 4 },
+  promoAppliedText: { flex: 1, fontSize: 13, fontWeight: '600', color: '#065F46' },
+  promoError: { fontSize: 12, color: '#DC2626', marginTop: 4, marginBottom: 8 },
+  discountRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 6 },
+  discountLabel: { fontSize: 13, color: '#10B981', fontWeight: '600' },
+  discountAmount: { fontSize: 13, color: '#10B981', fontWeight: '700' },
 });

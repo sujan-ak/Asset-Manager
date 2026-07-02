@@ -11,7 +11,10 @@ import {
   View,
   ToastAndroid,
   Alert,
+  ActivityIndicator as RNActivityIndicator,
 } from "react-native";
+import * as FileSystem from 'expo-file-system/legacy';
+import { getDownloadedPath, setDownloadedPath, removeDownloadedPath } from '@/lib/downloadStorage';
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { VideoPlayerEnhanced } from "@/components/VideoPlayerEnhanced";
 import { ResumeModal } from "@/components/ResumeModal";
@@ -40,6 +43,16 @@ export default function LearnScreen() {
   const [showResumeModal, setShowResumeModal] = useState(false);
   const [showCompleteModal, setShowCompleteModal] = useState(false);
   const [resumeFromTime, setResumeFromTime] = useState(0);
+  // TODO: DRM/piracy protection required before production
+  const [downloadedPath, setDownloadedPathState] = useState<string | null>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [downloadProgress, setDownloadProgress] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!activeModuleId) return;
+    getDownloadedPath(activeModuleId).then(setDownloadedPathState);
+  }, [activeModuleId]);
+
   useEffect(() => {
     async function loadData() {
       if (!courseId) return;
@@ -138,6 +151,46 @@ export default function LearnScreen() {
     }
   };
 
+  const handleDownload = async () => {
+    if (!activeModule?.videoUrl || !activeModule?.id) return;
+    if (downloadedPath) {
+      Alert.alert('Remove Download', 'Delete the offline copy of this lesson?', [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Remove', style: 'destructive', onPress: async () => {
+            await FileSystem.deleteAsync(downloadedPath, { idempotent: true });
+            await removeDownloadedPath(activeModule.id);
+            setDownloadedPathState(null);
+            showToast('Download removed');
+          },
+        },
+      ]);
+      return;
+    }
+    const localUri = `${FileSystem.documentDirectory}lesson_${activeModule.id}.mp4`;
+    setIsDownloading(true);
+    setDownloadProgress(0);
+    const dl = FileSystem.createDownloadResumable(
+      activeModule.videoUrl,
+      localUri,
+      {},
+      (p) => setDownloadProgress(p.totalBytesWritten / (p.totalBytesExpectedToWrite || 1)),
+    );
+    try {
+      const result = await dl.downloadAsync();
+      if (result?.uri) {
+        await setDownloadedPath(activeModule.id, result.uri);
+        setDownloadedPathState(result.uri);
+        showToast('Downloaded for offline use');
+      }
+    } catch {
+      showToast('Download failed');
+    } finally {
+      setIsDownloading(false);
+      setDownloadProgress(null);
+    }
+  };
+
   const handleWatchLaterToggle = async () => {
     await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const wasAdded = !isSaved;
@@ -167,13 +220,29 @@ export default function LearnScreen() {
   const handleVideoComplete = async () => {
     if (!user?.id || !courseId || !activeModule?.id) return;
     await markLessonComplete(user.id, courseId, activeModule.id);
+    let updatedProgress: any[] = [];
     try {
-      const progressData = await fetchCourseLessonsProgress(user.id, courseId);
-      setLessonsProgress(progressData);
+      updatedProgress = await fetchCourseLessonsProgress(user.id, courseId);
+      setLessonsProgress(updatedProgress);
     } catch (e) {
       console.error(e);
     }
     await Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+
+    // Navigate to certificate if course is now 100% complete
+    const completedCount = updatedProgress.filter((p) => p.is_completed).length;
+    if (lessons.length > 0 && completedCount === lessons.length) {
+      router.push({
+        pathname: '/certificate',
+        params: {
+          courseName: course?.title ?? '',
+          studentName: user.name ?? '',
+          completionDate: new Date().toISOString(),
+        },
+      });
+      return;
+    }
+
     setShowCompleteModal(true);
   };
 
@@ -289,11 +358,25 @@ export default function LearnScreen() {
           Learning
         </Text>
         <Pressable onPress={handleWatchLaterToggle} style={styles.watchLaterBtn}>
-          <MaterialIcons 
-            name={isSaved ? "bookmark" : "bookmark-border"} 
-            size={22} 
-            color={isSaved ? colors.primary : colors.mutedForeground} 
+          <MaterialIcons
+            name={isSaved ? "bookmark" : "bookmark-border"}
+            size={22}
+            color={isSaved ? colors.primary : colors.mutedForeground}
           />
+        </Pressable>
+        <Pressable onPress={handleDownload} style={styles.downloadBtn} disabled={isDownloading}>
+          {isDownloading ? (
+            <View style={{ alignItems: 'center' }}>
+              <RNActivityIndicator size="small" color={colors.primary} />
+              {downloadProgress !== null && (
+                <Text style={{ fontSize: 9, color: colors.primary }}>
+                  {Math.round(downloadProgress * 100)}%
+                </Text>
+              )}
+            </View>
+          ) : (
+            <Feather name="download" size={20} color={downloadedPath ? '#10B981' : colors.mutedForeground} />
+          )}
         </Pressable>
       </View>
 
@@ -339,7 +422,7 @@ export default function LearnScreen() {
       {/* Video Player - Compact 25% screen */}
       <View style={styles.videoWrapper}>
         <VideoPlayerEnhanced
-          videoUrl={activeModule.videoUrl}
+          videoUrl={downloadedPath ?? activeModule.videoUrl}
           initialTime={initialTime}
           onProgressUpdate={handleProgressUpdate}
           onComplete={handleVideoComplete}
@@ -525,6 +608,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   watchLaterBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
+  downloadBtn: { width: 40, height: 40, alignItems: "center", justifyContent: "center" },
   headerTitle: { flex: 1, fontSize: 17, fontWeight: "700", textAlign: "center" },
   
   // Compact Course Header

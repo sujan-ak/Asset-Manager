@@ -371,6 +371,24 @@ export default function CourseDetailScreen() {
             );
           })}
 
+          {/* View Certificate when completed */}
+          {isEnrolled && progress === 100 && (
+            <Pressable
+              style={[styles.certBtn, { backgroundColor: '#10B981' }]}
+              onPress={() => router.push({
+                pathname: '/certificate',
+                params: {
+                  courseName: course.title,
+                  studentName: user?.name ?? '',
+                  completionDate: new Date().toISOString(),
+                },
+              })}
+            >
+              <Feather name="award" size={18} color="#fff" />
+              <Text style={styles.certBtnText}>View Certificate</Text>
+            </Pressable>
+          )}
+
           {/* Quiz */}
           {quiz && isEnrolled && (
             <>
@@ -584,5 +602,7 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     minHeight: 52,
   },
-  ctaBtnText: { fontSize: 16, fontWeight: "700", color: "#FFF" },
+  ctaBtnText: { fontSize: 16, fontWeight: '700', color: '#FFF' },
+  certBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 14, borderRadius: 14 },
+  certBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

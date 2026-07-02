@@ -51,6 +51,10 @@ function RootLayoutNav() {
       <Stack.Screen name="settings/security" options={{ headerShown: false }} />
       <Stack.Screen name="settings/notifications" options={{ headerShown: false }} />
       <Stack.Screen name="settings/help" options={{ headerShown: false }} />
+      <Stack.Screen name="settings/feedback" options={{ headerShown: false }} />
+      <Stack.Screen name="settings/security-log" options={{ headerShown: false }} />
+      <Stack.Screen name="notifications" options={{ headerShown: false }} />
+      <Stack.Screen name="certificate" options={{ headerShown: false }} />
     </Stack>
   );
 }
